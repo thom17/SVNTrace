@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="be299132-d94a-4b1b-82fa-5b21800f8493" name="변경" comment="search tuple(dataclass, str) 지원 및 유연성 개선">
+      <change afterPath="$PROJECT_DIR$/.idea/SvnTrace.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/Project_Default.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/svn_oms/__init__.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/svn_oms/db_handler.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/test/main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/repos/ClangParserProject/test/clang_test/cunit_test.py" beforeDir="false" afterPath="$PROJECT_DIR$/repos/ClangParserProject/test/clang_test/cunit_test.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/repos/PyUtil/neo4j_manager/neo4jHandler.py" beforeDir="false" afterPath="$PROJECT_DIR$/repos/PyUtil/neo4j_manager/neo4jHandler.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/repos/PyUtil/tests/neo4j_test/simple_test.py" beforeDir="false" afterPath="$PROJECT_DIR$/repos/PyUtil/tests/neo4j_test/simple_test.py" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;thom17&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/thom17/ClangParserProject.git&quot;,
+    &quot;accountId&quot;: &quot;9dea6d79-c33d-4b13-a8c6-a042f646c522&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 2
+}</component>
+  <component name="ProjectId" id="2q0NCWdLRPsOEMhH3wKTytF3xhg" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python 테스트.Python tests for cunit_test.test_temp_unit.executor": "Run",
+    "Python 테스트.Python tests for cunit_test.test_temp_unti.executor": "Run",
+    "Python 테스트.Python tests for main.test_get_rv_oms_pair.executor": "Run",
+    "Python 테스트.Python tests for manager_test.test_check_rv_num.executor": "Run",
+    "Python 테스트.Python tests for manager_test.test_do_update.executor": "Run",
+    "Python 테스트.Python tests for manager_test.test_get_before_change_rv.executor": "Run",
+    "Python 테스트.Python tests for simple_test.test_all.executor": "Run",
+    "Python 테스트.Python tests for simple_test.test_search.executor": "Debug",
+    "Python 테스트.Python tests for simple_test.test_update_relation.executor": "Run",
+    "Python 테스트.Python tests for simple_test.test_use_data2node.executor": "Run",
+    "Python 테스트.Python tests in main.py.executor": "Run",
+    "Python 테스트.Python tests in manager_test.py.executor": "Run",
+    "Python 테스트.main.py 내 Python 테스트.executor": "Debug",
+    "Python 테스트.main.test_all_in_one의 Python 테스트.executor": "Run",
+    "Python 테스트.main.test_one_file_trace의 Python 테스트.executor": "Run",
+    "Python 테스트.simple_test.test_relation의 Python 테스트.executor": "Run",
+    "Python.main (1).executor": "Run",
+    "Python.main.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "master",
+    "settings.editor.selected.configurable": "com.intellij.pycharm.community.ide.impl.configuration.PythonContentEntriesConfigurable"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="D:\dev\Python\SVNTrace\SvnTrace\svn_oms\dataset" />
+    </key>
+  </component>
+  <component name="RunManager" selected="Python 테스트.main.test_one_file_trace의 Python 테스트">
+    <configuration name="Python tests for main.test_get_rv_oms_pair" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+      <module name="SvnTrace" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/test" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;main.test_get_rv_oms_pair&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Python tests for simple_test.test_search" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+      <module name="SvnTrace" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/repos/PyUtil/tests/neo4j_test" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;simple_test.test_search&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="main.py 내 Python 테스트" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+      <module name="SvnTrace" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/test" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;$PROJECT_DIR$/test/main.py&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="main.test_all_in_one의 Python 테스트" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+      <module name="SvnTrace" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/test" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;main.test_all_in_one&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
+    <configuration name="main.test_one_file_trace의 Python 테스트" type="tests" factoryName="Autodetect" temporary="true" nameIsGenerated="true">
+      <module name="SvnTrace" />
+      <option name="ENV_FILES" value="" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/test" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;main.test_one_file_trace&quot;" />
+      <option name="_new_targetType" value="&quot;PYTHON&quot;" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Python 테스트.main.test_one_file_trace의 Python 테스트" />
+        <item itemvalue="Python 테스트.main.test_all_in_one의 Python 테스트" />
+        <item itemvalue="Python 테스트.Python tests for main.test_get_rv_oms_pair" />
+        <item itemvalue="Python 테스트.Python tests for simple_test.test_search" />
+        <item itemvalue="Python 테스트.main.py 내 Python 테스트" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-975db3bf15a3-31b6be0877a2-com.jetbrains.pycharm.community.sharedIndexes.bundled-PC-241.18034.82" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="애플리케이션 수준" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="디폴트 작업">
+      <changelist id="be299132-d94a-4b1b-82fa-5b21800f8493" name="변경" comment="" />
+      <created>1733795405712</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1733795405712</updated>
+    </task>
+    <task id="LOCAL-00001" summary="add test_update_relation">
+      <option name="closed" value="true" />
+      <created>1733893584023</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1733893584023</updated>
+    </task>
+    <task id="LOCAL-00002" summary="node 저장시 tuple(dataclass, str) 지원 및 유연성 개선">
+      <option name="closed" value="true" />
+      <created>1733897468032</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1733897468032</updated>
+    </task>
+    <task id="LOCAL-00003" summary="search tuple(dataclass, str) 지원 및 유연성 개선">
+      <option name="closed" value="true" />
+      <created>1733899196859</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1733899196859</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
+    <servers />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="add test_update_relation" />
+    <MESSAGE value="node 저장시 tuple(dataclass, str) 지원 및 유연성 개선" />
+    <MESSAGE value="search tuple(dataclass, str) 지원 및 유연성 개선" />
+    <option name="LAST_COMMIT_MESSAGE" value="search tuple(dataclass, str) 지원 및 유연성 개선" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/test/main.py</url>
+          <line>10</line>
+          <option name="timeStamp" value="2" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/repos/PyUtil/svn_manager/svn_manager.py</url>
+          <line>142</line>
+          <option name="timeStamp" value="9" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/repos/PyUtil/svn_manager/svn_manager.py</url>
+          <line>156</line>
+          <option name="timeStamp" value="10" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/repos/PyUtil/tests/neo4j_test/simple_test.py</url>
+          <line>84</line>
+          <option name="timeStamp" value="22" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/svn_oms/db_handler.py</url>
+          <line>72</line>
+          <option name="timeStamp" value="24" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/repos/PyUtil/neo4j_manager/neo4jHandler.py</url>
+          <line>166</line>
+          <option name="timeStamp" value="27" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/repos/PyUtil/neo4j_manager/neo4jHandler.py</url>
+          <line>165</line>
+          <option name="timeStamp" value="36" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>

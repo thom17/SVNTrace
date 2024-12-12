@@ -1,0 +1,2 @@
+git+https://github.com/thom17/PyUtil.git
+git+https://github.com/thom17/ClangParserProject.git
