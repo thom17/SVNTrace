@@ -31,6 +31,7 @@ def get_test_oms():
     for info in infos.functionInfos.values():
         info_list.append(info)
     return info_list
+
 def test_get_rv_oms_pair():
     info_list = get_test_oms()
 
@@ -70,7 +71,6 @@ def test_one_file_trace():
         if 5000 < rv:
             to_save(rv=rv, file_path=target_file, db_handel=db_handel)
         pos -= 1
-
 
 
 
