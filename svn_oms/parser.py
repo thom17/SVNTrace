@@ -10,11 +10,27 @@ from clang.cindex import Cursor as CindexCursor
 
 import clangParser.clang_utill as ClangUtill
 from clangParser.CUnit import CUnit
+from clangParser.Cursor import Cursor
+
 from filemanager.FolderManager import FolderManager
 
 from collections import defaultdict
 
 from svn_oms.db_handler import DBHandler
+'''
+12-18
+너무 복잡하다....
+칼들고 나를 협박해서 아래의 과제를 수행하자.
+
+1. CUnit을 생성하고 생성된 시점의 코드를 unit에 저장해두자. 
+일단 이걸로 업데이트 순서를 지켜야되는 복잡도가 확 줄어든다. 또 너무 오래걸리지 않는듯. (하나의 파일 에대 max 8~10초 정도?)
+
+2. SVNDataSet 에 기본적으로 파싱한 데이터를 다 때려 넣자.
+모든 데이터 셋, 관계 데이터 셋 등 일단 이를 통해 중간 데이터도 DB화를 고려하자.
+핵심적으로 db / parser의 입 출력으로 활용하자.
+
+'''
+
 
 def rv_to_int(revision: Union[str]) -> int:
     '''
@@ -25,6 +41,92 @@ def rv_to_int(revision: Union[str]) -> int:
     return int(revision.replace('r', ''))
 
 PathRevision = Tuple[str, str] #file_path, revision
+
+
+class SVNDataSet:
+    '''
+    Simplified structure using two sets:
+    - units: stores (revision, path, unit)
+    - srcs: stores (src, revision)
+    '''
+    def __init__(self):
+        self.rv_path_units: Dict[Tuple[str, str], CUnit] = {}  # rv-path-unit
+        self.rv_srcs: Set[Tuple[str, str]] = set()  # rv-src
+
+        self.none_rv_files: Set[Tuple[str, str]] = set() #(삭제된 버전 , 삭제 된 파일) 혹은 (생성 되기 전 버전, 생성된 파일)
+
+        self.unit_rels: Dict[str, List[Tuple[CUnit, CUnit]]] = defaultdict(list) #type, [unit-unit]
+        self.src_rels: Dict[str, List[Tuple[CUnit, CUnit]]] = defaultdict(list) #type, [unit-unit]
+
+    def get_path_units_rvs(self) -> Dict[str, List[Tuple[CUnit, str]]]:
+        path_unit_rvs: Dict[str, List[Tuple[CUnit, str]]] = defaultdict(list)
+        for (rv, path), unit in self.rv_path_units.items():
+            path_unit_rvs[path].append((unit, rv))
+        return dict(path_unit_rvs)
+
+
+    def add_unit(self, revision: str, path: str, unit: CUnit):
+        self.rv_path_units[(revision, path)] = unit
+
+    def get_rv_path_map(self) -> Dict[str, Set[str]]:
+        """
+        Generate a map of revision -> paths.
+        """
+        rv_path_map = defaultdict(set)
+        for (rv, path), _ in self.rv_path_units.items():
+            rv_path_map[rv].add(path)
+        return dict(rv_path_map)
+
+    def get_path_rv_map(self) -> Dict[str, Set[str]]:
+        """
+        Generate a map of path -> revisions.
+        """
+        path_rv_map = defaultdict(set)
+        for (rv, path), _ in self.rv_path_units.items():
+            path_rv_map[path].add(rv)
+        return dict(path_rv_map)
+
+    def get_src_rv_map(self) -> Dict[str, Set[str]]:
+        """
+        Generate a map of src -> revisions.
+        """
+        src_rv_map = defaultdict(set)
+        for rv, src in self.rv_srcs:
+            src_rv_map[src].add(rv)
+        return dict(src_rv_map)
+
+    def get_rv_src_map(self) -> Dict[str, Set[str]]:
+        """
+        Generate a map of revision -> srcs.
+        """
+        rv_src_map = defaultdict(set)
+        for rv, src in self.rv_srcs:
+            rv_src_map[rv].add(src)
+        return dict(rv_src_map)
+    def get_last_units_map(self, file_paths: List[str], cur_revision: str ) -> Dict[str, Tuple[CUnit, str]]:
+        last_units: Dict[str, Tuple[CUnit, str]] = {}
+        path_rvs_map = self.get_path_rv_map()
+        for path in file_paths:
+            if path in path_rvs_map:
+                sorted_revs = sorted(list(path_rvs_map[path]), reverse=True)
+                last_rv = sorted_revs[0]
+                assert SVNManager.get_before_change_rv(path=path, revision=cur_revision), f'{cur_revision} {path}???'
+                last_unit = self.rv_path_units[(last_rv, path)]
+                last_units[path] = (last_unit, last_rv)
+            else: #cur_revision에 추가된 데이터
+                before_revision = str(int(cur_revision)-1)
+                self.none_rv_files.add((before_revision, path))
+
+        return last_units
+
+    def add_rel(self, start_src_or_unit, end_src_or_unit: Union[str, CUnit], rel_name: str):
+        assert type(start_src_or_unit) == type(end_src_or_unit) or not start_src_or_unit or not end_src_or_unit, f'서로 다른 타입의 연결. '
+        if isinstance(start_src_or_unit, str):
+            self.src_rels[rel_name].append((start_src_or_unit, end_src_or_unit))
+        else:
+            self.unit_rels[rel_name].append((start_src_or_unit, end_src_or_unit))
+
+
 
 class SVNProjectParser:
     def __init__(self, path: str, start_rv: Union[int, str] = None, end_rv :[Union, int] = 'HEAD'):
@@ -40,18 +142,20 @@ class SVNProjectParser:
         if self.end_rv != 'HEAD':
             self.end_rv_num = rv_to_int(self.end_rv)
 
+        self.data_set = SVNDataSet()
+
 
         self.log_dif_map: Dict[str, Tuple[Log, List[FileDiff]]] = {}
 
-        #최종 데이터에 활용하는 src와 리비전
-        self.src_rv_trace_map: Dict[str, Set[str]] = defaultdict(set)
-
-        #각 리비전의 파싱 unit
-        self.path_rv_unit_map : Dict[PathRevision, CUnit] = {}
-
-        #각 리비전에 파싱된 결과
-        self.rv_oms_infos: Dict[str, InfoSet] = {}
-        self.rv_clang_map: Dict[str, Dict[str, CindexCursor]] = {}
+        # #최종 데이터에 활용하는 src와 리비전
+        # self.src_rv_trace_map: Dict[str, Set[str]] = defaultdict(set)
+        #
+        # #각 리비전의 파싱 unit
+        # self.path_rv_unit_map : Dict[PathRevision, CUnit] = {}
+        #
+        # #각 리비전에 파싱된 결과
+        # self.rv_oms_infos: Dict[str, InfoSet] = {}
+        # self.rv_clang_map: Dict[str, Dict[str, CindexCursor]] = {}
 
 
 
@@ -145,18 +249,16 @@ class SVNProjectParser:
 
         unit_list = []
         for mode, file_path_list in update_result.items():
+            file_path_list = [path for path in file_path_list if path.endswith('.cpp') or path.endswith('.h')]
             if mode == 'D':
-                continue
+                for path in file_path_list:
+                    self.data_set.none_rv_files.add((self.start_rv, path))
+                print(f'start - end 사이에 추가되는 파일  {len(file_path_list)}개 있음.{self.start_rv} - {self.end_rv}')
             else:
                 for path in file_path_list:
                     unit = CUnit.parse(path)
-                    self.path_rv_unit_map[(path, self.start_rv)] = unit
-                    unit_list.append(unit)
+                    self.data_set.add_unit(path=path, revision=self.start_rv, unit=unit)
 
-
-        oms_infos, clang_src_map = OMS_Mapper.parsing(cursor_list=unit_list, do_update=False)
-        self.rv_oms_infos[self.start_rv] = oms_infos
-        self.rv_clang_map[self.start_rv] = clang_src_map
 
     # def __get_oms(self):
 
@@ -170,37 +272,42 @@ class SVNProjectParser:
 
         #그리고 파싱이력 없는 모델 파싱
         for file_path in files:
-            if (file_path, revision) in self.path_rv_unit_map:
+            if (file_path, revision) in  self.data_set.rv_path_units:
                 continue
             elif file_path.endswith('.h') or file_path.endswith('.cpp'):
                 unit = CUnit.parse(file_path)
-                to_parse_units.append(unit)
-                self.path_rv_unit_map[(file_path, revision)] = unit
-
-        oms_infos, clang_src_map = OMS_Mapper.parsing(cursor_list=to_parse_units, do_update=False)
-
-        if revision in self.rv_oms_infos:
-            print(revision, " dup")
-            duplicate_srcs = self.rv_oms_infos[revision].update(oms_infos)
-            print(duplicate_srcs)
-            duplicate_srcs = self.rv_clang_map[revision].update(clang_src_map)
-            print(duplicate_srcs)
-        else:
-            self.rv_oms_infos[revision] = oms_infos
-            self.rv_clang_map[revision] = clang_src_map
+                self.data_set.add_unit(revision=revision, path=file_path, unit=unit)
 
 
     def __trace_diff(self, file_dif_list: List[FileDiff], before_revision: str, revision: str):
-        def trace_src(line_changes: List[LineChanges], before_unit: CUnit, cur_unit) -> Dict[DiffActionType, List[str]]:
+        def get_before_unit(diff: FileDiff):
+            file_path = diff.filepath
+            revision = diff.revision
+
+            #이 코드는 반드시 성공해야함. 수정된 파일만 호출하도록 설계했음.
+            before_revision = SVNManager.get_before_change_rv(path=file_path, revision=revision)
+
+            if (before_revision, file_path) in self.data_set.rv_path_units:
+                return self.data_set.rv_path_units[(before_revision, file_path) ]
+            elif (self.start_rv, file_path) in self.data_set.rv_path_units:
+                return self.data_set.rv_path_units[(self.start_rv, file_path) ]
+
+        def trace_src(line_changes: List[LineChanges], before_unit: CUnit, cur_unit) -> Dict[
+            DiffActionType, List[str]]:
             action_src_map = defaultdict(set)
             for line_change in line_changes:
                 node = None
+                unit = None
                 if line_change.action == DiffActionType.Del:
                     node = before_unit.get_in_range_node(line_change.line_num)
+                    unit = before_unit
                 else:
                     node = cur_unit.get_in_range_node(line_change.line_num)
+                    unit = cur_unit
 
                 if node:
+                    # OMS_Mapper.Cursor2OMS(Cursor(node, source_code=unit.code), )
+                    # =Cursor(node, source_code=unit.code)
                     action_src_map[line_change.action].add(ClangUtill.get_src_name(node))
 
 
@@ -210,6 +317,21 @@ class SVNProjectParser:
         for diff in file_dif_list:
             file_path = diff.filepath
             if file_path.endswith('.cpp') or file_path.endswith('.h'): #다른 파일 파싱될 경우 unit 생성 관련 오류
+                if diff.action == DiffActionType.Add:
+                    pass
+                elif diff.action == DiffActionType.Del:
+                    pass
+                else:
+                    before_unit = get_before_unit(diff)
+                    cur_unit = self.data_set.rv_path_units[(diff.revision, diff.filepath)]
+
+                    SVNManager.make_line_changes(diff)
+
+
+
+                before_revision =SVNManager.get_before_change_rv(path=file_path, revision=revision)
+
+
                 before_unit = self.path_rv_unit_map.get((file_path, before_revision), None)
                 cur_unit = self.path_rv_unit_map.get((file_path, revision), None)
 
@@ -234,6 +356,10 @@ class SVNProjectParser:
                 else:
                     before_parse_files.append(diff.filepath)
                     cur_parse_files.append(diff.filepath)
+
+            before_parse_files = [path for path in before_parse_files if path.endswith('.cpp') or path.endswith('.h')]
+            cur_parse_files = [path for path in cur_parse_files if path.endswith('.cpp') or path.endswith('.h')]
+
             return before_parse_files, cur_parse_files
 
         self.__parse_start_rv()
@@ -244,16 +370,27 @@ class SVNProjectParser:
         idx = 1
         while idx < len(target_revisions):
             revision = target_revisions[idx]
-            before_revision = target_revisions[idx-1]
 
             log, file_dif_list = self.log_dif_map[revision]
             before_parse_files, cur_parse_files = sep_files_parse(file_dif_list)
 
-            self.__update_rv_map(files=before_parse_files, revision=before_revision)
+            before_unit_map: Dict[str, Tuple[CUnit, str]] = self.data_set.get_last_units_map(file_paths = before_parse_files, cur_revision=revision)
             self.__update_rv_map(files=cur_parse_files, revision=revision)
+            update_unit_map: Dict[str, Tuple[CUnit, str]] = self.data_set.get_last_units_map(file_paths = cur_parse_files, cur_revision=revision)
 
-            self.__trace_diff(file_dif_list, before_revision, revision)
+            for path, (before_unit, rv) in before_unit_map.items():
+                if path in update_unit_map: #수정된 경우.
+                    unit = update_unit_map[path][0]
+                    self.data_set.add_rel(before_unit, unit, 'update')
+                else: #삭제된 경우 임
+                    self.data_set.add_rel(before_unit, None, 'del')
 
+            #업데이트 쪽 파일에는 있으나 이전 버전에 없을 경우
+            for path, (unit, rv) in update_unit_map.items():
+                if not path in before_unit_map:
+                    self.data_set.add_rel(None, unit, 'add') #해당 파일은 중간에 추가된 경우임
+
+            self.__trace_diff(file_dif_list=file_dif_list, revision=revision)
 
             print(f'{revision} : {len(file_dif_list)}')
             idx += 1
