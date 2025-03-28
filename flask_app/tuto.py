@@ -1,6 +1,8 @@
 from flask import Flask, request, render_template_string
 import svn_manager.svn_manager as SVNManager
+from svn_manager.svn_data import Log, FileDiff
 
+import os
 app = Flask(__name__)
 
 # Improved HTML template with better structure and styling
@@ -53,14 +55,13 @@ HTML_TEMPLATE = """
                 </div>
 
                 <div onclick="toggleContent('message-{{ data.log.revision }}')" class="collapsible">
-                    <strong>Message</strong> (click to expand/collapse)
+                    <strong> {{data.preview_msg}} </strong>
                 </div>
-                <div id="message-{{ data.log.revision }}" class="content log-message">
-                    {{ data.log.msg }}
+                <div id="message-{{ data.log.revision }}" class="content log-message">{{ data.log.msg }}
                 </div>
 
                 <div onclick="toggleContent('files-{{ data.log.revision }}')" class="collapsible">
-                    <strong>Changed Files</strong> ({{ data.file_diffs|length }}) (click to expand/collapse)
+                    <strong>Changed Files</strong> ({{ data.file_diffs|length }}) {{data.preview_path}}
                 </div>
                 <div id="files-{{ data.log.revision }}" class="content file-changes">
                     {% for file_diff in data.file_diffs %}
@@ -78,6 +79,15 @@ HTML_TEMPLATE = """
 </html>
 """
 
+def get_preview_texts(log: Log, file_diffs: list[FileDiff]) -> tuple[str, str]:
+    msg = ' (click to expand/collapse)'
+    if log.msg and log.msg.split('\n'):
+        msg = log.msg.split('\n')[0] + msg
+
+    paths = [os.path.basename(diff.filepath) for diff in file_diffs]
+    return msg, str(paths)
+
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -93,9 +103,13 @@ def index():
             # Transform the data for template rendering
             logs = []
             for revision, (log, file_diffs) in logs_map.items():
+                preview_msg, preview_path = get_preview_texts(log, file_diffs)
+
                 logs.append((revision, {
                     'log': log,
-                    'file_diffs': file_diffs
+                    'file_diffs': file_diffs,
+                    'preview_msg' : preview_msg,
+                    'preview_path' : preview_path
                 }))
 
             # Sort logs by revision number (descending)
