@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Union, Tuple, Set
 import os
 from dataclasses import dataclass
 
-from clangParser.CUnit import CUnit
+from clangParser.datas.CUnit import CUnit
 import clangParser.clang_utill as ClangUtill
 import clang.cindex as ClangIndex
 
@@ -135,7 +135,17 @@ class SVNTraceProjectData:
             is_none = True
 
         elif file_path.endswith('.cpp') or file_path.endswith('.h'):
-            unit = CUnit.parse(file_path=file_path)
+            try:
+                print(f'\rparse {file_path}', end='\t')
+                unit = CUnit.parse(file_path=file_path)
+                print(end='pass')
+
+            except:
+                print(f'faill {file_path}')
+                raise Exception(f'CUint.parser Error {file_path}') from None
+                
+
+
         else:
             unit = None
 

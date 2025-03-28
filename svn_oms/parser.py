@@ -9,8 +9,7 @@ from oms.dataset.info_base import InfoSet,InfoBase
 from clang.cindex import Cursor as CindexCursor
 
 import clangParser.clang_utill as ClangUtill
-from clangParser.CUnit import CUnit
-from clangParser.Cursor import Cursor
+from clangParser.datas.CUnit import CUnit, Cursor
 
 from filemanager.FolderManager import FolderManager
 

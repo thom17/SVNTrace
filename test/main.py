@@ -10,8 +10,6 @@ rv = 7631
 # print(code)
 # print()
 
-import svn_oms.main as Main
-import svn_oms.oms_getter as OMSGetter
 import svn_manager.svn_manager as SVNManager
 
 from svn_oms.db_handler import DBHandler
