@@ -1,11 +1,99 @@
 from flask import Flask, request, render_template_string
 import svn_manager.svn_manager as SVNManager
 from svn_manager.svn_data import Log, FileDiff
+
 import os
 
-app = Flask(__name__)
 
-HTML_TEMPLATE = """
+class SVNLogViewer:
+    def __init__(self):
+        self.app = Flask(__name__)
+        self._configure_routes()
+        self.search_path = None
+        self.search_datas = None
+
+
+    def _configure_routes(self):
+        self.app.route('/', methods=['GET', 'POST'])(self.index)
+        self.app.route('/save_db', methods=['POST'])(self.save_db_route)
+
+    def get_preview_texts(self, log: Log, file_diffs: list[FileDiff]) -> tuple[str, str]:
+        # Get first line of commit message
+        msg = ""
+        if log.msg and '\n' in log.msg:
+            msg = log.msg.split('\n')[0]
+        else:
+            msg = log.msg or ""
+
+        # Get filenames without paths
+        filenames = [os.path.basename(diff.filepath) for diff in file_diffs]
+        return msg, ", ".join(filenames)
+
+    def save_db(self):
+        """
+        Save the SVN logs to a database.
+        """
+        # Placeholder for database save logic
+
+        print('clicked save_db ', len(self.search_datas))
+
+        pass
+
+    def save_db_route(self):
+        try:
+            self.save_db()
+            return {"message": "Database saved successfully"}
+        except Exception as e:
+            return {"message": f"Error saving database: {str(e)}"}, 500
+
+    def index(self):
+        logs = None
+        log_error = None
+
+        if request.method == 'POST':
+            path = request.form.get('path')
+            query_type = request.form.get('query_type', 'recent')
+
+            try:
+                if query_type == 'recent':
+                    count = int(request.form.get('count', 50))
+                    logs_map = SVNManager.get_recent_logs(path, count)
+                    self.search_datas = logs_map
+                else:  # range
+                    start_revision = request.form.get('start_revision')
+                    end_revision = request.form.get('end_revision')
+
+                    if not end_revision:
+                        # If end_revision is not provided, use the current revision
+                        end_revision = SVNManager.get_current_revision(path)
+
+                    logs_map = SVNManager.get_svn_range_log_dif(path, start_revision, end_revision)
+
+                # Transform the data for template rendering
+                logs = []
+                for revision, (log, file_diffs) in logs_map.items():
+                    preview_msg, preview_path = self.get_preview_texts(log, file_diffs)
+
+                    logs.append((revision, {
+                        'log': log,
+                        'file_diffs': file_diffs,
+                        'preview_msg': preview_msg,
+                        'preview_path': preview_path
+                    }))
+
+                # Sort logs by revision number (descending)
+                logs.sort(key=lambda x: int(x[0]), reverse=True)
+
+            except Exception as e:
+                log_error = f"로그를 가져오는 중 오류 발생: {e}"
+
+        return render_template_string(self.HTML_TEMPLATE, logs=logs, log_error=log_error)
+
+    def run(self, debug=True):
+        self.app.run(debug=debug)
+
+    # HTML template as a class property
+    HTML_TEMPLATE = """
 <!doctype html>
 <html>
 <head>
@@ -92,9 +180,10 @@ HTML_TEMPLATE = """
                 </div>
 
                 <div onclick="toggleContent('message-{{ data.log.revision }}')" class="collapsible">
-                    <strong> {{data.preview_msg}} </strong>
+                    <strong>Message:</strong> {{ data.preview_msg }}
                 </div>
-                <div id="message-{{ data.log.revision }}" class="content log-message">{{ data.log.msg }}
+                <div id="message-{{ data.log.revision }}" class="content log-message">
+                    {{ data.log.msg }}
                 </div>
 
                 <div onclick="toggleContent('files-{{ data.log.revision }}')" class="collapsible">
@@ -139,80 +228,7 @@ HTML_TEMPLATE = """
 """
 
 
-def get_preview_texts(log: Log, file_diffs: list[FileDiff]) -> tuple[str, str]:
-    # Get first line of commit message
-    msg = ""
-    if log.msg and '\n' in log.msg:
-        msg = log.msg.split('\n')[0]
-    else:
-        msg = log.msg or ""
-
-    # Get filenames without paths
-    filenames = [os.path.basename(diff.filepath) for diff in file_diffs]
-    return msg, ", ".join(filenames)
-
-
-@app.route('/save_db', methods=['POST'])
-def save_db_route():
-    try:
-        save_db()
-        return {"message": "Database saved successfully"}
-    except Exception as e:
-        return {"message": f"Error saving database: {str(e)}"}, 500
-
-
-def save_db():
-    """
-    Save the SVN logs to a database.
-    """
-    # Placeholder for database save logic
-    print('clicked save_db')
-    pass
-
-
-@app.route('/', methods=['GET', 'POST'])
-def index():
-    logs = None
-    log_error = None
-
-    if request.method == 'POST':
-        path = request.form.get('path')
-        query_type = request.form.get('query_type', 'recent')
-
-        try:
-            if query_type == 'recent':
-                count = int(request.form.get('count', 50))
-                logs_map = SVNManager.get_recent_logs(path, count)
-            else:  # range
-                start_revision = request.form.get('start_revision')
-                end_revision = request.form.get('end_revision')
-
-                if not end_revision:
-                    # If end_revision is not provided, use the current revision
-                    end_revision = SVNManager.get_current_revision(path)
-
-                logs_map = SVNManager.get_svn_range_log_dif(path, start_revision, end_revision)
-
-            # Transform the data for template rendering
-            logs = []
-            for revision, (log, file_diffs) in logs_map.items():
-                preview_msg, preview_path = get_preview_texts(log, file_diffs)
-
-                logs.append((revision, {
-                    'log': log,
-                    'file_diffs': file_diffs,
-                    'preview_msg': preview_msg,
-                    'preview_path': preview_path
-                }))
-
-            # Sort logs by revision number (descending)
-            logs.sort(key=lambda x: int(x[0]), reverse=True)
-
-        except Exception as e:
-            log_error = f"로그를 가져오는 중 오류 발생: {e}"
-
-    return render_template_string(HTML_TEMPLATE, logs=logs, log_error=log_error)
-
-
+# Main application entry point
 if __name__ == '__main__':
-    app.run(debug=True)
+    viewer = SVNLogViewer()
+    viewer.run(debug=True)
