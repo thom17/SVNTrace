@@ -1,7 +1,7 @@
 from flask import Flask, request, render_template_string
 import svn_manager.svn_manager as SVNManager
 from svn_manager.svn_data import Log, FileDiff
-
+from neo4j_manager.neo4jHandler import Neo4jHandler
 import os
 
 
@@ -11,6 +11,27 @@ class SVNLogViewer:
         self._configure_routes()
         self.search_path = None
         self.search_datas = None
+
+        self.neo4j: Neo4jHandler = self.connect_db()
+
+    def connect_db(self):
+        '''
+        db 재연결. 추후 DB 관련 기능이 많이 개발 되면 추가 구현.
+        2025-03-31 기준 현제는 초기화 함수
+        '''
+
+        #추후 UI로 부터 입력값 받기
+        try:
+            from neo4j_manager.neo4jHandler import Neo4jHandler
+            uri = "bolt://localhost:7687"
+            user = "neo4j"
+            password = "123456789"
+            database = "merge"
+            return Neo4jHandler(uri=uri, user=user, password=password, database=database)
+        except Exception as e:
+            print(f"Failed to connect to database: {e}")
+            return None
+
 
 
     def _configure_routes(self):
@@ -34,10 +55,23 @@ class SVNLogViewer:
         Save the SVN logs to a database.
         """
         # Placeholder for database save logic
+        print('before save_db ', len(self.search_datas))
+        self.neo4j.print_info()
 
-        print('clicked save_db ', len(self.search_datas))
+        save_datas = []
+        save_relations = []
+        for log, filediffs in self.search_datas.values():
+            save_datas.append(log)
+            save_datas.extend(filediffs)
+            for filediff in filediffs:
+                save_relations.append((log, filediff, 'file_diff'))
 
-        pass
+        self.neo4j.save_data(save_datas)
+        self.neo4j.add_relationship(save_relations)
+
+        print('after save_db ', len(self.search_datas))
+        self.neo4j.print_info()
+
 
     def save_db_route(self):
         try:
@@ -54,12 +88,13 @@ class SVNLogViewer:
             path = request.form.get('path')
             query_type = request.form.get('query_type', 'recent')
 
+            # 1. 로그맵 구하기
             try:
+                #1.a 최근 로그
                 if query_type == 'recent':
                     count = int(request.form.get('count', 50))
                     logs_map = SVNManager.get_recent_logs(path, count)
-                    self.search_datas = logs_map
-                else:  # range
+                else:  # 1.b. 범위 로그
                     start_revision = request.form.get('start_revision')
                     end_revision = request.form.get('end_revision')
 
@@ -69,7 +104,9 @@ class SVNLogViewer:
 
                     logs_map = SVNManager.get_svn_range_log_dif(path, start_revision, end_revision)
 
-                # Transform the data for template rendering
+                self.search_datas = logs_map
+
+                #2. 로그맵을 시각화
                 logs = []
                 for revision, (log, file_diffs) in logs_map.items():
                     preview_msg, preview_path = self.get_preview_texts(log, file_diffs)
