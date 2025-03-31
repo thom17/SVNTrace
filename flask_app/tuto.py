@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template_string
+from flask import Flask, request, render_template_string, jsonify
 import svn_manager.svn_manager as SVNManager
 from svn_manager.svn_data import Log, FileDiff
 from neo4j_manager.neo4jHandler import Neo4jHandler
@@ -20,7 +20,7 @@ class SVNLogViewer:
         2025-03-31 기준 현제는 초기화 함수
         '''
 
-        #추후 UI로 부터 입력값 받기
+        # 추후 UI로 부터 입력값 받기
         try:
             from neo4j_manager.neo4jHandler import Neo4jHandler
             uri = "bolt://localhost:7687"
@@ -32,11 +32,10 @@ class SVNLogViewer:
             print(f"Failed to connect to database: {e}")
             return None
 
-
-
     def _configure_routes(self):
         self.app.route('/', methods=['GET', 'POST'])(self.index)
         self.app.route('/save_db', methods=['POST'])(self.save_db_route)
+        self.app.route('/parse_data', methods=['POST'])(self.parse_data_route)
 
     def get_preview_texts(self, log: Log, file_diffs: list[FileDiff]) -> tuple[str, str]:
         # Get first line of commit message
@@ -72,6 +71,23 @@ class SVNLogViewer:
         print('after save_db ', len(self.search_datas))
         self.neo4j.print_info()
 
+    def parse_data(self):
+        """
+        Parse SVN logs for additional analysis.
+        """
+        if not self.search_datas:
+            raise Exception("No data to parse. Please search for logs first.")
+
+        # Count file changes by extension
+        extensions = {}
+        for log, file_diffs in self.search_datas.values():
+            for diff in file_diffs:
+                ext = os.path.splitext(diff.filepath)[1]
+                if ext:
+                    extensions[ext] = extensions.get(ext, 0) + 1
+
+        print(f"File extensions found: {extensions}")
+        return {"parsed_data": extensions}
 
     def save_db_route(self):
         try:
@@ -79,6 +95,13 @@ class SVNLogViewer:
             return {"message": "Database saved successfully"}
         except Exception as e:
             return {"message": f"Error saving database: {str(e)}"}, 500
+
+    def parse_data_route(self):
+        try:
+            result = self.parse_data()
+            return jsonify({"message": "Data parsed successfully", "data": result})
+        except Exception as e:
+            return jsonify({"message": f"Error parsing data: {str(e)}"}), 500
 
     def index(self):
         logs = None
@@ -90,7 +113,7 @@ class SVNLogViewer:
 
             # 1. 로그맵 구하기
             try:
-                #1.a 최근 로그
+                # 1.a 최근 로그
                 if query_type == 'recent':
                     count = int(request.form.get('count', 50))
                     logs_map = SVNManager.get_recent_logs(path, count)
@@ -106,7 +129,7 @@ class SVNLogViewer:
 
                 self.search_datas = logs_map
 
-                #2. 로그맵을 시각화
+                # 2. 로그맵을 시각화
                 logs = []
                 for revision, (log, file_diffs) in logs_map.items():
                     preview_msg, preview_path = self.get_preview_texts(log, file_diffs)
@@ -161,6 +184,11 @@ class SVNLogViewer:
         .radio-group label { margin-right: 15px; cursor: pointer; }
         .range-inputs { display: none; }
         .count-input { display: block; }
+        .modal { display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; border-radius: 5px; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: black; }
+        #parse-results { margin-top: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
     </style>
     <script>
         function toggleContent(id) {
@@ -203,8 +231,17 @@ class SVNLogViewer:
         <div class="controls">
             <button type="submit">로그 조회</button>
             <button type="button" onclick="saveDB()">Save DB</button>
+            <button type="button" onclick="parseData()">Parsing</button>
         </div>
     </form>
+
+    <div id="parseModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>Parsing Results</h2>
+            <div id="parse-results"></div>
+        </div>
+    </div>
 
     {% if logs %}
         <h2>로그 결과 ({{ logs|length }} entries)</h2>
@@ -255,6 +292,61 @@ class SVNLogViewer:
                 console.error('Error:', error);
                 alert('Error saving to database');
             });
+        }
+
+        function parseData() {
+            fetch('/parse_data', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayParseResults(data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error parsing data');
+            });
+        }
+
+        function displayParseResults(data) {
+            const resultsDiv = document.getElementById('parse-results');
+            let html = '';
+
+            if (data.message) {
+                html += `<p>${data.message}</p>`;
+            }
+
+            if (data.data && data.data.parsed_data) {
+                html += '<h3>File Extensions</h3>';
+                html += '<table style="width:100%; border-collapse: collapse;">';
+                html += '<tr><th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">Extension</th>';
+                html += '<th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">Count</th></tr>';
+
+                for (const [ext, count] of Object.entries(data.data.parsed_data)) {
+                    html += `<tr><td style="padding:8px; border-bottom:1px solid #ddd;">${ext || '(no extension)'}</td>`;
+                    html += `<td style="padding:8px; border-bottom:1px solid #ddd;">${count}</td></tr>`;
+                }
+
+                html += '</table>';
+            }
+
+            resultsDiv.innerHTML = html;
+            document.getElementById('parseModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('parseModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('parseModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
         }
 
         // Initialize form display
