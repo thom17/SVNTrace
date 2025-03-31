@@ -106,28 +106,39 @@ class SVNLogViewer:
     def index(self):
         logs = None
         log_error = None
+        search_params = None
 
         if request.method == 'POST':
             path = request.form.get('path')
             query_type = request.form.get('query_type', 'recent')
+
+            # Prepare search parameters to display
+            search_params = {
+                'path': path,
+                'query_type': query_type
+            }
 
             # 1. 로그맵 구하기
             try:
                 # 1.a 최근 로그
                 if query_type == 'recent':
                     count = int(request.form.get('count', 50))
+                    search_params['count'] = count
                     logs_map = SVNManager.get_recent_logs(path, count)
                 else:  # 1.b. 범위 로그
                     start_revision = request.form.get('start_revision')
                     end_revision = request.form.get('end_revision')
+                    search_params['start_revision'] = start_revision
 
                     if not end_revision:
                         # If end_revision is not provided, use the current revision
                         end_revision = SVNManager.get_current_revision(path)
 
+                    search_params['end_revision'] = end_revision
                     logs_map = SVNManager.get_svn_range_log_dif(path, start_revision, end_revision)
 
                 self.search_datas = logs_map
+                search_params['revisions_found'] = len(logs_map)
 
                 # 2. 로그맵을 시각화
                 logs = []
@@ -147,7 +158,7 @@ class SVNLogViewer:
             except Exception as e:
                 log_error = f"로그를 가져오는 중 오류 발생: {e}"
 
-        return render_template_string(self.HTML_TEMPLATE, logs=logs, log_error=log_error)
+        return render_template_string(self.HTML_TEMPLATE, logs=logs, log_error=log_error, search_params=search_params)
 
     def run(self, debug=True):
         self.app.run(debug=debug)
@@ -189,6 +200,38 @@ class SVNLogViewer:
         .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
         .close:hover { color: black; }
         #parse-results { margin-top: 15px; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .search-info { 
+            position: fixed; 
+            top: 80px; 
+            right: 20px; 
+            width: 250px; 
+            background-color: #f8f8f8; 
+            border: 1px solid #ddd; 
+            border-radius: 5px; 
+            padding: 15px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .search-info h3 { 
+            margin-top: 0; 
+            border-bottom: 1px solid #ddd; 
+            padding-bottom: 8px; 
+        }
+        .search-info p { 
+            margin: 5px 0; 
+            font-size: 14px; 
+        }
+        .search-info-item { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 5px;
+        }
+        .search-info-label { 
+            font-weight: bold; 
+            color: #555;
+        }
+        .main-content {
+            margin-right: 280px;
+        }
     </style>
     <script>
         function toggleContent(id) {
@@ -243,9 +286,47 @@ class SVNLogViewer:
         </div>
     </div>
 
-    {% if logs %}
-        <h2>로그 결과 ({{ logs|length }} entries)</h2>
-        {% for revision, data in logs %}
+    {% if search_params %}
+    <div class="search-info">
+        <h3>Search Information</h3>
+        <div class="search-info-item">
+            <span class="search-info-label">Repository:</span>
+            <span>{{ search_params.path }}</span>
+        </div>
+        <div class="search-info-item">
+            <span class="search-info-label">Query Type:</span>
+            <span>{{ search_params.query_type }}</span>
+        </div>
+        {% if search_params.query_type == 'recent' %}
+        <div class="search-info-item">
+            <span class="search-info-label">Count:</span>
+            <span>{{ search_params.count }}</span>
+        </div>
+        {% else %}
+        <div class="search-info-item">
+            <span class="search-info-label">Start Revision:</span>
+            <span>{{ search_params.start_revision }}</span>
+        </div>
+        <div class="search-info-item">
+            <span class="search-info-label">End Revision:</span>
+            <span>{{ search_params.end_revision }}</span>
+        </div>
+        {% endif %}
+        <div class="search-info-item">
+            <span class="search-info-label">Revisions Found:</span>
+            <span>{{ search_params.revisions_found }}</span>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="main-content">
+        {% if log_error %}
+            <div class="error">{{ log_error }}</div>
+        {% endif %}
+
+        {% if logs %}
+            <h2>로그 결과 ({{ logs|length }} entries)</h2>
+            {% for revision, data in logs %}
             <div class="log-entry">
                 <div class="log-header">
                     <div><strong>Revision:</strong> {{ data.log.revision }}</div>
@@ -271,10 +352,9 @@ class SVNLogViewer:
                     {% endfor %}
                 </div>
             </div>
-        {% endfor %}
-    {% elif log_error %}
-        <div class="error">{{ log_error }}</div>
-    {% endif %}
+            {% endfor %}
+        {% endif %}
+    </div>
 
     <script>
         function saveDB() {
