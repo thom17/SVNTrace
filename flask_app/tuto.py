@@ -1,9 +1,18 @@
 from flask import Flask, request, render_template_string, jsonify
 import svn_manager.svn_manager as SVNManager
 from svn_manager.svn_data import Log, FileDiff
-from neo4j_manager.neo4jHandler import Neo4jHandler
+
+from neo4j_manager.neo4jHandler import Neo4jHandler, Node
+
+from clangParser.datas.CUnit import CUnit, Cursor
+# from oms.dataset.info_factory import cursor2info
+import oms.Mapper as OMSMapper
+
 import os
 
+from svn_oms.dataset.svn_oms import RvUnit
+
+from svn_oms.dataset.rv_info_factory import info2Rvinfo, dict2RvUnit
 
 class SVNLogViewer:
     def __init__(self):
@@ -71,23 +80,96 @@ class SVNLogViewer:
         print('after save_db ', len(self.search_datas))
         self.neo4j.print_info()
 
+    def parse_for_rvinfo(self, cunit: CUnit, revision: str):
+        """
+        CUnit을 파싱하여 RVInfo 정보를 추출합니다.
+        Parse the unit for RV information.
+        """
+        rvinfos = []
+        print('parse_for_rvinfo', cunit.file_path)
+        for cursor in cunit.get_this_Cursor():
+            info = OMSMapper.Cursor2InfoBase(cursor)
+            if info:
+                rvinfos.append( info2Rvinfo(revision, info))
+        return rvinfos
+
+
     def parse_data(self):
         """
         Parse SVN logs for additional analysis.
         """
-        if not self.search_datas:
-            raise Exception("No data to parse. Please search for logs first.")
+        def __load_rv_unit(file_diff : FileDiff, to_save_datas: list[CUnit]):
+            path = file_diff.filepath.replace('\\', '\\\\') # \\ 처리
+            rv = file_diff.revision
+            query = f"MATCH (unit:RvUnit) WHERE unit.revision = '{rv}' AND unit.file_path = '{path}' RETURN unit"
+            result = self.neo4j.do_query(query)
+            if not result:
+                # If no nodes found, create a new one
+                unit = CUnit.parse(file_path=path)
+                unit = RvUnit(unit, rv)
+                to_save_datas.append(unit)
+            elif len(result) == 1:
+                node: Node = result[0]['unit']
+                unit = dict2RvUnit(dict(node))
+            else:
+                raise Exception(f"Multiple nodes found for revision {rv} and file {path} {len(result)}")
+            return unit
 
-        # Count file changes by extension
-        extensions = {}
+        #1. 파싱이 필요한 파일 특정 (일단 cpp, h만)
+        print('1. check to parse files')
+        to_parse_files = []
         for log, file_diffs in self.search_datas.values():
             for diff in file_diffs:
-                ext = os.path.splitext(diff.filepath)[1]
-                if ext:
-                    extensions[ext] = extensions.get(ext, 0) + 1
+                file_path:str = diff.filepath
+                if file_path.endswith('.cpp') or file_path.endswith('.h'):
+                    to_parse_files.append(diff)
+                    SVNManager.do_update(file_path, log.revision) #안전한 파싱을 위해 일단 업데이트는 수행
 
-        print(f"File extensions found: {extensions}")
-        return {"parsed_data": extensions}
+        #2. 파싱 및 db 로드
+        print('2. parse/load files')
+        to_save_datas = []
+        to_add_relations = []
+        rv_units = []
+        for file_diff in to_parse_files:
+            rv_units.append(__load_rv_unit(file_diff, to_save_datas))
+
+        #2.1. 새로 파싱한 유닛의 경우 rvinfo 추가 생성
+        print('2.1 parse rvinfo')
+        for rvunit in rv_units:
+            print(rvunit)
+            if rvunit in to_save_datas:
+                rv_infos = self.parse_for_rvinfo(rvunit.cunit, rvunit.revision)
+                to_save_datas.extend(rv_infos)
+                for rvinfo in rv_infos:
+                    to_add_relations.append((rvunit, rvinfo, 'has'))
+
+
+        #3. DB에 저장
+        print('3. save db')
+        print('before save_db ', len(to_save_datas), '/', len(to_add_relations))
+        self.neo4j.print_info()
+        self.neo4j.save_data(to_save_datas)
+        self.neo4j.add_relationship(to_add_relations)
+        print('after save_db ', len(to_save_datas), '/', len(to_add_relations))
+        self.neo4j.print_info()
+
+
+
+
+
+        # if not self.search_datas:
+        #     raise Exception("No data to parse. Please search for logs first.")
+        #
+        # # Count file changes by extension
+        # extensions = {}
+        # for log, file_diffs in self.search_datas.values():
+        #     for diff in file_diffs:
+        #         ext = os.path.splitext(diff.filepath)[1]
+        #         if ext:
+        #             extensions[ext] = extensions.get(ext, 0) + 1
+        #
+        # print(f"File extensions found: {extensions}")
+        # return {"parsed_data": extensions}
 
     def save_db_route(self):
         try:
