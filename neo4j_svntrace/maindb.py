@@ -44,10 +44,10 @@ class MainDBManager:
         :param revision: 해당 버전을 DB에 저장
         :return:
         '''
-
+        revision = str(revision)
         if self.__check_revision(revision):
             return
-        else:
+        elif Log.from_subprocess_by_path_with_range(PROJECT_PATH, revision, revision):
             # 파싱을 위해 해당 버전으로 체크아웃
             SVNManager.do_update(PROJECT_PATH, revision)
             log, filediffs = list(SVNManager.get_svn_range_log_dif(PROJECT_PATH, revision, revision).values())[0]
@@ -56,6 +56,8 @@ class MainDBManager:
             for file_diff in filediffs:
                 if file_diff.filepath.endswith('.cpp') or file_diff.filepath.endswith('.h'):
                     self.__parse_for_rv(file_diff)
+        else:
+            print(revision, ' 수정된 파일이 없습니다.')
 
     def __save_log_diff(self, log: Log, filediffs: List[FileDiff]):
         save_datas = [log] + filediffs
@@ -84,8 +86,9 @@ class MainDBManager:
             for cursor in unit.get_this_Cursor():
                 info = OMSMapper.Cursor2InfoBase(cursor)
                 if info:
-                    to_save_data.append(info2Rvinfo(file_diff.revision, info))
-                    to_save_relations.append((rv_unit, info, 'has'))
+                    rv_info = info2Rvinfo(file_diff.revision, info)
+                    to_save_data.append(rv_info)
+                    to_save_relations.append((rv_unit, rv_info, 'has'))
 
             self.neo4j.save_data(to_save_data)
             self.neo4j.add_relationship(to_save_relations)
@@ -94,8 +97,8 @@ class MainDBManager:
             print(f"Error parsing {file_diff.filepath} at revision {file_diff.revision}: {e}")
             return None
 
-
-
+    def update_trace(self):
+        pass
     def get_rv_unit(self, revision: str, filepath: str):
         '''
         :param revision:
