@@ -98,16 +98,17 @@ class SVNLogViewer:
         """
         Parse SVN logs for additional analysis.
         """
-        def __load_rv_unit(file_diff : FileDiff, to_save_datas: list[CUnit]):
+        def __load_rv_unit(file_diff : FileDiff):
             path = file_diff.filepath.replace('\\', '\\\\') # \\ 처리
             rv = file_diff.revision
             query = f"MATCH (unit:RvUnit) WHERE unit.revision = '{rv}' AND unit.file_path = '{path}' RETURN unit"
             result = self.neo4j.do_query(query)
             if not result:
-                # If no nodes found, create a new one
-                unit = CUnit.parse(file_path=path)
-                unit = RvUnit(unit, rv)
-                to_save_datas.append(unit)
+                return None
+                # # If no nodes found, create a new one
+                # unit = CUnit.parse(file_path=file_diff.filepath)
+                # unit = RvUnit(unit, rv)
+                # to_save_datas.append(unit)
             elif len(result) == 1:
                 node: Node = result[0]['unit']
                 unit = dict2RvUnit(dict(node))
@@ -125,33 +126,39 @@ class SVNLogViewer:
                     to_parse_files.append(diff)
                     SVNManager.do_update(file_path, log.revision) #안전한 파싱을 위해 일단 업데이트는 수행
 
-        #2. 파싱 및 db 로드
-        print('2. parse/load files')
-        to_save_datas = []
-        to_add_relations = []
-        rv_units = []
-        for file_diff in to_parse_files:
-            rv_units.append(__load_rv_unit(file_diff, to_save_datas))
+            #2. 파싱 및 db 로드
+            print('2. parse/load files')
+            to_save_datas = []
+            to_add_relations = []
+            rv_units = []
+            for file_diff in to_parse_files:
+                if __load_rv_unit(file_diff) is None:
+                    # Parse the file and create a new unit
+                    unit = CUnit.parse(file_path=file_diff.filepath)
+                    unit = RvUnit(unit, file_diff.revision)
+                    rv_units.append(unit)
+                    to_save_datas.append(unit)
+                else:
+                    print('load_rv_unit ', file_diff.filepath)
 
-        #2.1. 새로 파싱한 유닛의 경우 rvinfo 추가 생성
-        print('2.1 parse rvinfo')
-        for rvunit in rv_units:
-            print(rvunit)
-            if rvunit in to_save_datas:
+
+            #2.1. 새로 파싱한 유닛의 경우 rvinfo 추가 생성
+            print('2.1 parse rvinfo')
+            for rvunit in rv_units:
                 rv_infos = self.parse_for_rvinfo(rvunit.cunit, rvunit.revision)
                 to_save_datas.extend(rv_infos)
                 for rvinfo in rv_infos:
                     to_add_relations.append((rvunit, rvinfo, 'has'))
 
 
-        #3. DB에 저장
-        print('3. save db')
-        print('before save_db ', len(to_save_datas), '/', len(to_add_relations))
-        self.neo4j.print_info()
-        self.neo4j.save_data(to_save_datas)
-        self.neo4j.add_relationship(to_add_relations)
-        print('after save_db ', len(to_save_datas), '/', len(to_add_relations))
-        self.neo4j.print_info()
+            #3. DB에 저장
+            print('3. save db')
+            print('before save_db ', len(to_save_datas), '/', len(to_add_relations))
+            self.neo4j.print_info()
+            self.neo4j.save_data(to_save_datas)
+            self.neo4j.add_relationship(to_add_relations)
+            print('after save_db ', len(to_save_datas), '/', len(to_add_relations))
+            self.neo4j.print_info()
 
 
 
@@ -419,8 +426,7 @@ class SVNLogViewer:
                 <div onclick="toggleContent('message-{{ data.log.revision }}')" class="collapsible">
                     <strong>Message:</strong> {{ data.preview_msg }}
                 </div>
-                <div id="message-{{ data.log.revision }}" class="content log-message">
-                    {{ data.log.msg }}
+                <div id="message-{{ data.log.revision }}" class="content log-message">{{ data.log.msg }}
                 </div>
 
                 <div onclick="toggleContent('files-{{ data.log.revision }}')" class="collapsible">
