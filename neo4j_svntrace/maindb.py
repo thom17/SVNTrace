@@ -23,8 +23,8 @@ from svn_oms.dataset.rv_info_factory import RvUnit, info2Rvinfo
 PROJECT_PATH = r'D:\dev\AutoPlanning\trunk\AP_trunk_pure'
 CYPER_PATH_BY_REVISIONS = \
 '''MATCH (n:FileDiff)
-WITH n.filepath AS path, collect(n.revision) AS revisions
-RETURN path, revisions
+WITH n.file_path AS file_path, collect(n.revision) AS revisions
+RETURN file_path, revisions
 '''
 
 CYPER_GET_FILE_DIFF = \
@@ -167,10 +167,7 @@ class MainDBManager:
             relations_list = []
             for revision in revision_list:
                 #to do : 해당 리비전의 FileDiff 노드 가져오기
-                match_nodes = list(self.neo4j.graph.nodes.match(ENodeName.FILE_DIFF, filepath=path, revision=revision))
-                assert len(match_nodes) == 1, '식별 불가능({len(match_nodes)})개 검색됨. {path} {revision}'
-
-                node = match_nodes[0]
+                node = self.get_rv_node_by_path(ENodeName.FILE_DIFF, revision, path)
                 if before:
                     # to do : 기존 연결된 노드가 있고 동일할 경우 스킵
                     existing_rels = list(self.neo4j.graph.match((before, None), r_type='next'))
@@ -191,7 +188,7 @@ class MainDBManager:
         #파일별 리비전 리스트 가져오기
         result = self.neo4j.do_query(CYPER_PATH_BY_REVISIONS)
         for path_revisions_dict in result:
-            path = path_revisions_dict['path']
+            path = path_revisions_dict['file_path']
             revisions = path_revisions_dict['revisions']
             revisions.sort(reverse=False)
 
