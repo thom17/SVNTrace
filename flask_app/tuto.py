@@ -55,7 +55,7 @@ class SVNLogViewer:
             msg = log.msg or ""
 
         # Get filenames without paths
-        filenames = [os.path.basename(diff.filepath) for diff in file_diffs]
+        filenames = [os.path.basename(diff.file_path) for diff in file_diffs]
         return msg, ", ".join(filenames)
 
     def save_db(self):
@@ -99,7 +99,7 @@ class SVNLogViewer:
         Parse SVN logs for additional analysis.
         """
         def __load_rv_unit(file_diff : FileDiff):
-            path = file_diff.filepath.replace('\\', '\\\\') # \\ 처리
+            path = file_diff.file_path.replace('\\', '\\\\') # \\ 처리
             rv = file_diff.revision
             query = f"MATCH (unit:RvUnit) WHERE unit.revision = '{rv}' AND unit.file_path = '{path}' RETURN unit"
             result = self.neo4j.do_query(query)
@@ -121,7 +121,7 @@ class SVNLogViewer:
         to_parse_files = []
         for log, file_diffs in self.search_datas.values():
             for diff in file_diffs:
-                file_path:str = diff.filepath
+                file_path:str = diff.file_path
                 if file_path.endswith('.cpp') or file_path.endswith('.h'):
                     to_parse_files.append(diff)
                     SVNManager.do_update(file_path, log.revision) #안전한 파싱을 위해 일단 업데이트는 수행
@@ -134,12 +134,12 @@ class SVNLogViewer:
             for file_diff in to_parse_files:
                 if __load_rv_unit(file_diff) is None:
                     # Parse the file and create a new unit
-                    unit = CUnit.parse(file_path=file_diff.filepath)
+                    unit = CUnit.parse(file_path=file_diff.file_path)
                     unit = RvUnit(unit, file_diff.revision)
                     rv_units.append(unit)
                     to_save_datas.append(unit)
                 else:
-                    print('load_rv_unit ', file_diff.filepath)
+                    print('load_rv_unit ', file_diff.file_path)
 
 
             #2.1. 새로 파싱한 유닛의 경우 rvinfo 추가 생성
