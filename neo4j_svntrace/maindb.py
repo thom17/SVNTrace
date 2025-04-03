@@ -1,6 +1,11 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
+from enum import Enum
+import os
 
 from py2neo import Relationship, Node
+
+
+import neo4j_svntrace.constants as ENodeName
 
 
 from neo4j_manager.neo4jHandler import Neo4jHandler
@@ -66,7 +71,7 @@ class MainDBManager:
 
             self.__save_log_diff(log, filediffs)
             for file_diff in filediffs:
-                if file_diff.filepath.endswith('.cpp') or file_diff.filepath.endswith('.h'):
+                if file_diff.file_path.endswith('.cpp') or file_diff.file_path.endswith('.h'):
                     self.__parse_for_rv(file_diff)
         else:
             print(revision, ' 수정된 파일이 없습니다.')
@@ -89,7 +94,7 @@ class MainDBManager:
 
         try:
             # Parse the file and create RvUnit
-            unit = CUnit.parse(file_path=file_diff.filepath)
+            unit = CUnit.parse(file_path=file_diff.file_path)
             rv_unit = RvUnit(unit, file_diff.revision)
 
             # Extract RvInfo from the unit
@@ -106,8 +111,49 @@ class MainDBManager:
             self.neo4j.add_relationship(to_save_relations)
 
         except Exception as e:
-            print(f"Error parsing {file_diff.filepath} at revision {file_diff.revision}: {e}")
+            print(f"Error parsing {file_diff.file_path} at revision {file_diff.revision}: {e}")
             return None
+
+    def __get_change_infos(self, before_diff: Node, cur_diff: Node) -> Dict[str, Node]:
+        info_relations = []
+
+        # 유닛 가져오기
+        before_unit = self.get_rv_node_by_path(ENodeName.RV_UNIT, before_diff['revision'], before_diff['file_path'])
+        cur_unit = self.get_rv_node_by_path(ENodeName.RV_UNIT, cur_diff['revision'], cur_diff['file_path'])
+
+        assert before_unit and cur_unit, f'이전 유닛({before_diff["revision"]}) 또는 현재 유닛({cur_diff["revision"]})을 찾을 수 없습니다.'
+
+        # info 가져오기
+        before_nodes_map = self.get_info_nodes_map(before_unit)
+        cur_nodes_map = self.get_info_nodes_map(cur_unit)
+
+        # 먼저 이전 Unit -> 현재 Unit 연결
+        for src_name, before_node in before_nodes_map.items():
+            next_node = cur_nodes_map.get(src_name, None)
+
+            # case 1. 삭제된 경우
+            if next_node is None:
+                info_relations.append(Relationship(before_node, 'delete', cur_diff))  # 일단 Diff 에 연결
+
+            # case 2. 수정된 경우
+            elif before_node['code'] != next_node['code']:
+                info_relations.append(Relationship(before_node, 'modify', next_node))
+
+        # case 3. 추가된 경우
+        for src_name, node in cur_nodes_map.items():
+            if src_name not in before_nodes_map:
+                info_relations.append(Relationship(cur_diff, 'add', node))
+
+        return info_relations
+
+    def get_info_nodes_map(self, rvunit: Node):
+        infos = [r.end_node for r in self.neo4j.graph.match((rvunit, None), r_type='has')]
+        infos_map = {}
+        for info in infos:
+            assert info['src_name'] not in infos_map, f'중복된 src_name 발견 {info["src_name"]}'
+            infos_map[info['src_name']] = info
+        return infos_map
+
 
     def update_trace(self):
         '''
@@ -121,7 +167,7 @@ class MainDBManager:
             relations_list = []
             for revision in revision_list:
                 #to do : 해당 리비전의 FileDiff 노드 가져오기
-                match_nodes = list(self.neo4j.graph.nodes.match('FileDiff', filepath=path, revision=revision))
+                match_nodes = list(self.neo4j.graph.nodes.match(ENodeName.FILE_DIFF, filepath=path, revision=revision))
                 assert len(match_nodes) == 1, '식별 불가능({len(match_nodes)})개 검색됨. {path} {revision}'
 
                 node = match_nodes[0]
@@ -134,6 +180,7 @@ class MainDBManager:
                             continue
 
                     relations_list.append( Relationship(before, 'next' ,node) )
+                    relations_list.extend( self.__get_change_infos(before, node) )
 
 
                 before = node
@@ -149,7 +196,7 @@ class MainDBManager:
             revisions.sort(reverse=False)
 
             relations = __get_connect_relationship(path, revisions)
-            # __update_trace_info(relations)
+
 
             #일단 임시로 하나만 태스트
             tx = self.neo4j.graph.begin()
@@ -165,18 +212,40 @@ class MainDBManager:
 
         print(result)
 
+    def get_rv_node_by_path(self, node_name: str, revision: str, filepath : str) -> Optional[Node]:
+        nodes = []
+        for node in list(self.neo4j.graph.nodes.match(node_name, revision=revision)):
+            if os.path.normpath(node['file_path']) == os.path.normpath(filepath):
+                nodes.append(node)
 
-    def get_rv_unit(self, revision: str, filepath: str):
+        if not nodes:
+            return None
+        elif len(nodes) == 1:
+            return nodes[0]
+        else:
+            raise Exception(f"Multiple nodes found for revision {revision} and file {filepath} {len(nodes)}")
+
+    def update_file_path_normalize(self):
         '''
-        :param revision:
-        :param filepath:
+        DB에 저장된 파일 경로를 정규화합니다.
+        // , / , \ 등으로 저장된 경로를 통일합니다.
         :return:
         '''
-        query = "MATCH (unit:A) WHERE unit.revision = $revision AND unit.file_path = $filepath RETURN unit"
-        result = self.neo4j.graph.run(query, {"revision": revision, "filepath": filepath}).data()
-        if not result:
-            return None
-        elif len(result) == 1:
-            return result[0]['unit']
-        else:
-            raise Exception(f"Multiple nodes found for revision {revision} and file {filepath} {len(result)}")
+        query = """
+            MATCH (n)
+            WHERE n.file_path is NOT NULL
+            RETURN n, n.file_path AS file_path
+            """
+        result = self.neo4j.do_query(query)
+        tx = self.neo4j.graph.begin()
+        change_size = 0
+        for record in result:
+            node = record["n"]
+            old_path = record["file_path"]
+            new_path = os.path.normpath(old_path)
+            if old_path != new_path:
+                change_size += 1
+                tx.run("MATCH (n) WHERE ID(n) = $node_id SET n.file_path = $new_path",
+                       node_id=node.identity, new_path=new_path)
+        tx.commit()
+        print(f"Updated {change_size} file paths to normalized format.")
