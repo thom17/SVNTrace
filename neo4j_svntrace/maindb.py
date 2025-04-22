@@ -99,9 +99,13 @@ class MainDBManager:
 
             # Extract RvInfo from the unit
             to_save_data = [rv_unit]
-            to_save_relations = []
+            to_save_relations = [(file_diff, rv_unit, 'unit')]
             for cursor in unit.get_this_Cursor():
+                #class a; 와 같은 단순한 클래스 선언은 제외
+                if cursor.kind == 'CLASS_DECL' and len(cursor.get_children()) == 0:
+                    continue
                 info = OMSMapper.Cursor2InfoBase(cursor)
+
                 if info:
                     rv_info = info2Rvinfo(file_diff.revision, info)
                     to_save_data.append(rv_info)
@@ -121,28 +125,44 @@ class MainDBManager:
         before_unit = self.get_rv_node_by_path(ENodeName.RV_UNIT, before_diff['revision'], before_diff['file_path'])
         cur_unit = self.get_rv_node_by_path(ENodeName.RV_UNIT, cur_diff['revision'], cur_diff['file_path'])
 
-        assert before_unit and cur_unit, f'이전 유닛({before_diff["revision"]}) 또는 현재 유닛({cur_diff["revision"]})을 찾을 수 없습니다.'
+        if not before_unit and cur_unit:
+            # 이전 유닛이 없고 현재 유닛만 있는 경우(추가된 경우)
+            before_unit = self.get_rv_node_by_path(ENodeName.RV_UNIT, before_diff['revision'], before_diff['file_path'])
+
+        # assert before_unit and cur_unit, f'{cur_diff["file_path"]} 이전 유닛({before_diff["revision"]}) 또는 현재 유닛({cur_diff["revision"]})을 찾을 수 없습니다.'
 
         # info 가져오기
-        before_nodes_map = self.get_info_nodes_map(before_unit)
-        cur_nodes_map = self.get_info_nodes_map(cur_unit)
+        if before_unit:
+            before_nodes_map = self.get_info_nodes_map(before_unit)
 
-        # 먼저 이전 Unit -> 현재 Unit 연결
-        for src_name, before_node in before_nodes_map.items():
-            next_node = cur_nodes_map.get(src_name, None)
+        if cur_unit:
+            cur_nodes_map = self.get_info_nodes_map(cur_unit)
 
-            # case 1. 삭제된 경우
-            if next_node is None:
-                info_relations.append(Relationship(before_node, 'delete', cur_diff))  # 일단 Diff 에 연결
+        # 먼저 이전 Unit -> 현재 Unit 연결 (파일 수정)
+        if before_unit and cur_unit:
+            for src_name, before_node in before_nodes_map.items():
+                next_node = cur_nodes_map.get(src_name, None)
 
-            # case 2. 수정된 경우
-            elif before_node['code'] != next_node['code']:
-                info_relations.append(Relationship(before_node, 'modify', next_node))
+                # case 1. 삭제된 경우
+                if next_node is None:
+                    info_relations.append(Relationship(before_node, 'delete', cur_diff))  # 일단 Diff 에 연결
 
-        # case 3. 추가된 경우
-        for src_name, node in cur_nodes_map.items():
-            if src_name not in before_nodes_map:
+                # case 2. 수정된 경우
+                elif before_node['code'] != next_node['code']:
+                    info_relations.append(Relationship(before_node, 'modify', next_node))
+
+                # case 3. 추가된 경우
+                for src_name, node in cur_nodes_map.items():
+                    if src_name not in before_nodes_map:
+                        info_relations.append(Relationship(cur_diff, 'add', node))
+        #파일 추가된 경우
+        elif not before_unit and cur_unit:
+            for src_name, node in cur_nodes_map.items():
                 info_relations.append(Relationship(cur_diff, 'add', node))
+        #파일 삭제된 경우
+        elif before_unit and not cur_unit:
+            for src_name, node in before_nodes_map.items():
+                info_relations.append(Relationship(node, 'delete', cur_diff))
 
         return info_relations
 
@@ -150,7 +170,12 @@ class MainDBManager:
         infos = [r.end_node for r in self.neo4j.graph.match((rvunit, None), r_type='has')]
         infos_map = {}
         for info in infos:
-            assert info['src_name'] not in infos_map, f'중복된 src_name 발견 {info["src_name"]}'
+            #임시방편으로 일단 긴거 선택. 추후 저장 시 필터링 해야할듯. https://github.com/thom17/SVNTrace/issues/5
+            if info['src_name'] in infos_map:
+                print(f'중복된 src_name 발견 {info["revision"]} {info["src_name"]}')
+                if len(info['code']) < len(infos_map[info['src_name']]['code']):
+                    info = infos_map[info['src_name']]
+            #아무튼 info 설정
             infos_map[info['src_name']] = info
         return infos_map
 
@@ -177,7 +202,10 @@ class MainDBManager:
                             continue
 
                     relations_list.append( Relationship(before, 'next' ,node) )
-                    relations_list.extend( self.__get_change_infos(before, node) )
+                    
+                    #cpp 및 h 파일만 info가 있고 연결
+                    if before['file_path'].endswith('.cpp') or before['file_path'].endswith('.h'):
+                        relations_list.extend( self.__get_change_infos(before, node) )
 
 
                 before = node
@@ -186,6 +214,7 @@ class MainDBManager:
 
 
         #파일별 리비전 리스트 가져오기
+        progress = 0
         result = self.neo4j.do_query(CYPER_PATH_BY_REVISIONS)
         for path_revisions_dict in result:
             path = path_revisions_dict['file_path']
@@ -201,10 +230,12 @@ class MainDBManager:
                 for rel in relations:
                     tx.create(rel)
                 tx.commit()
+                progress += 1
+                print(f'\r{progress} / {len(result)}({progress/len(result)* 100:.2f}%)', end='\t')
             except Exception as e:
                 tx.rollback()
                 raise e
-            break
+            # break #수행
 
 
         print(result)
