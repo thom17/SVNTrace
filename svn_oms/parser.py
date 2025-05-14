@@ -280,7 +280,7 @@ class SVNProjectParser:
 
     def __trace_diff(self, file_dif_list: List[FileDiff], before_revision: str, revision: str):
         def get_before_unit(diff: FileDiff):
-            file_path = diff.filepath
+            file_path = diff.file_path
             revision = diff.revision
 
             #이 코드는 반드시 성공해야함. 수정된 파일만 호출하도록 설계했음.
@@ -314,7 +314,7 @@ class SVNProjectParser:
 
 
         for diff in file_dif_list:
-            file_path = diff.filepath
+            file_path = diff.file_path
             if file_path.endswith('.cpp') or file_path.endswith('.h'): #다른 파일 파싱될 경우 unit 생성 관련 오류
                 if diff.action == DiffActionType.Add:
                     pass
@@ -322,7 +322,7 @@ class SVNProjectParser:
                     pass
                 else:
                     before_unit = get_before_unit(diff)
-                    cur_unit = self.data_set.rv_path_units[(diff.revision, diff.filepath)]
+                    cur_unit = self.data_set.rv_path_units[(diff.revision, diff.file_path)]
 
                     SVNManager.make_line_changes(diff)
 
@@ -349,12 +349,12 @@ class SVNProjectParser:
             before_parse_files = []
             for diff in diff_list:
                 if diff.action == DiffActionType.Del:
-                    before_parse_files.append(diff.filepath)
+                    before_parse_files.append(diff.file_path)
                 elif diff.action == DiffActionType.Add:
-                    cur_parse_files.append(diff.filepath)
+                    cur_parse_files.append(diff.file_path)
                 else:
-                    before_parse_files.append(diff.filepath)
-                    cur_parse_files.append(diff.filepath)
+                    before_parse_files.append(diff.file_path)
+                    cur_parse_files.append(diff.file_path)
 
             before_parse_files = [path for path in before_parse_files if path.endswith('.cpp') or path.endswith('.h')]
             cur_parse_files = [path for path in cur_parse_files if path.endswith('.cpp') or path.endswith('.h')]

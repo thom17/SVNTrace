@@ -178,7 +178,7 @@ class SVNTraceProjectData:
         '''
         초기 세팅(베이스 노드?) 이후 호풀. src도 적용
         '''
-        file_path = file_diff.filepath
+        file_path = file_diff.file_path
         revision = file_diff.revision
 
         #중간에 추가된 경우
