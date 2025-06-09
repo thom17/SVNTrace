@@ -42,15 +42,15 @@ class RvUnit:
     def __init__(self, cunit: CUnit, revision: str):
         self.cunit: CUnit = cunit
         self.revision = revision
-        self.rv_src = self.revision + rv_src_sep + self.cunit.file_path
+        self.rv_path = self.revision + rv_src_sep + self.cunit.file_path
 
     def __str__(self):
-        return self.rv_src
+        return self.rv_path
 
     def to_dict(self):
         source_dict = self.cunit.to_dict()
         source_dict['revision'] = self.revision
-        source_dict['rv_src'] = self.rv_src
+        source_dict['rv_path'] = self.rv_path
         return source_dict
 
 

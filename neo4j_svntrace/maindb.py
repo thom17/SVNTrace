@@ -20,7 +20,7 @@ import oms.Mapper as OMSMapper
 from svn_oms.dataset.rv_info_factory import RvUnit, info2Rvinfo
 
 
-PROJECT_PATH = r'D:\dev\AutoPlanning\trunk\AP_trunk_pure'
+PROJECT_PATH = r'D:\dev\AutoPlanning\forDB'
 CYPER_PATH_BY_REVISIONS = \
 '''MATCH (n:FileDiff)
 WITH n.file_path AS file_path, collect(n.revision) AS revisions
@@ -38,7 +38,7 @@ class MainDBManager:
     DB에 해당 데이터가 저장되어있는지 확인하고, 없으면 저장합니다.
     '''
 
-    def __init__(self, uri="bolt://localhost:7687", user="neo4j", database='merge', password="123456789"):
+    def __init__(self, uri="bolt://localhost:7687", user="neo4j", database='test', password="123456789"):
         self.neo4j: Neo4jHandler = Neo4jHandler(uri=uri, user=user, password=password, database=database)
 
     def __check_revision(self, revision: str) -> bool:
@@ -178,6 +178,188 @@ class MainDBManager:
             #아무튼 info 설정
             infos_map[info['src_name']] = info
         return infos_map
+
+    def reconnect_trace_relationship(self):
+        '''
+        기존 연결된 노드정보를 모두 삭제하고 재연결
+        '''
+
+        #기존 연결된 노드 삭제
+        query = "MATCH ()-[r]->() DELETE r"
+        self.neo4j.do_query(query)
+
+        #Log 가져와서 리비전 순으로 정렬
+        query ="""
+        MATCH (n:Log)
+        WITH n ORDER BY n.revision
+        WITH collect(n) AS logs
+        UNWIND range(0, size(logs)-2) AS i
+        WITH logs[i] AS from, logs[i+1] AS to
+        MERGE (from)-[:next]->(to)
+        """
+        self.neo4j.do_query(query)
+        print(f"Log-Log 연결 완료")
+
+
+        #Log - FileDiff  노드 연결
+        query = """
+        MATCH (l:Log), (f:FileDiff)
+        WHERE l.revision = f.revision
+        MERGE (l)-[:file_diff]->(f)
+        """
+        self.neo4j.do_query(query)
+        print(f"Log-FileDiff 연결 완료")
+
+        #FileDiff - RvUnit 노드 연결
+        query = """
+            MATCH (f:FileDiff), (r:RvUnit)
+            WHERE f.file_path = r.file_path AND f.revision = r.revision
+            MERGE (f)-[:unit]->(r)
+            """
+        self.neo4j.do_query(query)
+        print(f"FileDiff-RvUnit 연결 완료")
+
+
+        #FileDiff - FileDiff 노드 연결
+        query = """
+            MATCH (n:FileDiff)
+            WITH n.file_path AS file_path, collect(n) AS files
+            UNWIND files AS file
+            WITH file_path, file
+            ORDER BY file_path, file.revision
+            WITH file_path, collect(file) AS sorted_files
+            UNWIND range(0, size(sorted_files)-2) AS i
+            WITH sorted_files[i] AS from, sorted_files[i+1] AS to
+            MERGE (from)-[:next]->(to)
+                """
+        self.neo4j.do_query(query)
+        print(f"FileDiff-FileDiff 연결 완료")
+
+        #Set RvInfo
+        self.neo4j.do_query("MATCH (n:RvClassInfo) SET n:RvInfo")
+        self.neo4j.do_query("MATCH (n:RvFunctionInfo) SET n:RvInfo")
+        self.neo4j.do_query("MATCH (n:RvVarInfo) SET n:RvInfo")
+
+        #RvUnit - RvInfo 노드 연결
+        query = """
+        MATCH (r:RvUnit)
+        MATCH (n:RvInfo {revision: r.revision, file_path: r.file_path})
+        MERGE (r)-[:has]->(n)
+        """
+        self.neo4j.do_query(query)
+        print(f"RvUnit-RvInfo 연결 완료")
+        
+        #RvInfo - RvInfo 노드 연결
+        query = """
+        MATCH (f:FileDiff)
+        WITH f.file_path AS file_path, f
+        ORDER BY f.revision
+        WITH file_path, collect(f) AS sorted_file_diff
+        RETURN file_path, sorted_file_diff
+        """
+        path_rvinfo_trace_map: dict[str, list[Relationship]] = {} #파일별 rvinfo relationship
+
+        #1. 먼저 FileDiff rv 순으로 가져옴
+        for results in self.neo4j.do_query(query):
+            file_path = results['file_path']
+            sorted_file_diff = results['sorted_file_diff']
+            path_rvinfo_trace_map[file_path] = []
+            #2. 두개의 FileDiff로 RvOMSTrace 및 Relationship 생성
+            for i in range(1, len(sorted_file_diff)):
+                file_diff_1 = sorted_file_diff[i - 1]
+                file_diff_2 = sorted_file_diff[i]
+                path_rvinfo_trace_map[file_path].extend(self.__get_change_infos(file_diff_1, file_diff_2))
+        #3. 생성된 Relationship을 DB에 저장
+        for file_path, relations in path_rvinfo_trace_map.items():
+            tx = self.neo4j.graph.begin()
+            for rel in relations:
+                tx.create(rel)
+            tx.commit()
+            print(f'RvInfo 연결: {file_path}'"")
+
+        #4. 위에서 생성한 Relationship을 바탕으로 Log - RvInfo 연결
+        query = """
+            MATCH (n1:RvInfo)-[:modify]->(n2:RvInfo)
+            MATCH (l1:Log {revision: n1.revision}), (l2:Log {revision: n2.revision})
+            MERGE (n1)-[:log]->(l1)
+            MERGE (n2)-[:log]->(l2)
+            """
+        self.neo4j.do_query(query)
+        print(f'RvInfo - Log 연결 완료')
+
+        # for node in self.neo4j.graph.nodes.match('RvInfo'):
+
+
+
+
+    # def create_improved_modify_relationship(self, before_node, next_node):
+    #     """
+    #     더 나은 modify 관계를 생성합니다. (by agent)
+    #     """
+    #     # 1. 먼저 두 노드가 같은 함수/메소드인지 확인
+    #     if before_node['src_name'] != next_node['src_name']:
+    #         return None
+    #
+    #     # 2. 코드 변경이 있는지 확인
+    #     if before_node['code'] == next_node['code']:
+    #         return None
+    #
+    #     # 3. 차이점 계산
+    #     import difflib
+    #     diff = list(difflib.unified_diff(
+    #         before_node['code'].splitlines(),
+    #         next_node['code'].splitlines()
+    #     ))
+    #
+    #     lines_added = sum(1 for line in diff if line.startswith('+'))
+    #     lines_removed = sum(1 for line in diff if line.startswith('-'))
+    #
+    #     # 4. 메인 엔티티 노드 가져오기 또는 생성하기 (처음 방문 시)
+    #     entity_query = """
+    #     MERGE (entity:{label} {{name: $name}})
+    #     RETURN entity
+    #     """.format(label=before_node.labels.__iter__().__next__())
+    #
+    #     entity = self.neo4j.graph.run(entity_query, {
+    #         "name": before_node['src_name']
+    #     }).data()[0]['entity']
+    #
+    #     # 5. 버전 노드 생성 또는 가져오기
+    #     version_query = """
+    #     MERGE (version:{label}Version {{
+    #         entity_id: $entity_id,
+    #         revision: $revision,
+    #         file_path: $file_path
+    #     }})
+    #     ON CREATE SET version.code = $code
+    #     RETURN version
+    #     """.format(label=before_node.labels.__iter__().__next__())
+    #
+    #     before_version = self.neo4j.graph.run(version_query, {
+    #         "entity_id": entity.identity,
+    #         "revision": before_node['revision'],
+    #         "file_path": before_node['file_path'],
+    #         "code": before_node['code']
+    #     }).data()[0]['version']
+    #
+    #     next_version = self.neo4j.graph.run(version_query, {
+    #         "entity_id": entity.identity,
+    #         "revision": next_node['revision'],
+    #         "file_path": next_node['file_path'],
+    #         "code": next_node['code']
+    #     }).data()[0]['version']
+    #
+    #     # 6. Entity와 Version 사이의 관계 생성
+    #     self.neo4j.graph.create(Relationship(entity, "HAS_VERSION", before_version))
+    #     self.neo4j.graph.create(Relationship(entity, "HAS_VERSION", next_version))
+    #
+    #     # 7. 버전 간의 modify 관계 생성
+    #     modify_rel = Relationship(before_version, "MODIFIES", next_version)
+    #     modify_rel['lines_added'] = lines_added
+    #     modify_rel['lines_removed'] = lines_removed
+    #     modify_rel['change_type'] = "UPDATE"
+    #
+    #     return self.neo4j.graph.create(modify_rel)
 
 
     def update_trace(self):
