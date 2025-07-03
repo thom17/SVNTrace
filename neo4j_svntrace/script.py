@@ -15,13 +15,15 @@ db = MainDBManager()
 
 # db.reconnect_trace_relationship()
 
-start_rv =6775
-size = 3000
+
+start_rv =8000
+size = 1000
 for i in range(size):
     print('update : ', i+start_rv)
     db.update_revision(str(i+start_rv))
 
 print('update done')
-db.update_trace()
+# db.update_trace()
 
 db.reconnect_trace_relationship()
+db.connect_head_info()

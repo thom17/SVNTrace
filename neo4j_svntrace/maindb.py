@@ -289,6 +289,74 @@ class MainDBManager:
 
         # for node in self.neo4j.graph.nodes.match('RvInfo'):
 
+    def connect_head_info(self):
+        '''
+        head 노드를 생성 및 데이터와 연결합니다.
+        head 노드는 해당 DB의 파싱 결과로 생성된 모든 노드와 연결
+        :return:
+        '''
+
+        # 먼저 기존 head 노드 삭제
+        query = "MATCH (h:Head) DETACH DELETE h"
+        self.neo4j.do_query(query)
+
+        # 최신 Log 노드 가져오기 및 head 노드 생성
+        query = """
+        MATCH (l:Log)
+        ORDER BY toInteger(l.revision) DESC LIMIT 1
+        CREATE (h:Head {created_at: datetime(), revision: l.revision})
+        MERGE (h)-[:log]->(l)
+        RETURN h
+        """
+        result = self.neo4j.do_query(query)
+        head = result[0]['h'] if result else None
+
+        # 최신 FileDiff 노드 가져오기 및 연결
+        query = """
+        MATCH (f:FileDiff)
+        WITH f.file_path AS file_path, f
+        ORDER BY file_path, toInteger(f.revision) DESC
+        WITH file_path, collect(f)[0] AS latest_filediff
+        MATCH (h:Head)
+        MERGE (h)-[:head_file_diff]->(latest_filediff)
+        """
+        self.neo4j.do_query(query)
+        # result =
+        # latest_filediff = [r['latest_filediff'] for r in self.neo4j.do_query(query)]
+
+        # relations = [ Relationship(head, 'head_file', file_diff) for file_diff in latest_filediff]
+        # self.neo4j.
+
+        # 단순 파싱이 아닌 가장 최신 연결 정보를 가진 RvInfo와 연결 정보를 구함
+        query = """
+        MATCH (r:RvInfo)
+        WITH r.src_name AS src_name, r.file_path AS file_path, r
+        ORDER BY src_name, toInteger(r.revision) DESC
+        WITH src_name, file_path, collect(r)[0] AS latest_rv_info
+        MATCH (latest_rv_info)-[rel]-()
+        WHERE type(rel) <> 'has'
+        RETURN latest_rv_info, type(rel)
+        """
+        result = self.neo4j.do_query(query)
+        relations = []
+        for record in result:
+            latest_rv_info = record['latest_rv_info']
+            rel = record['type(rel)']
+
+
+            if rel == "delete":
+                # relations.append(Relationship(head, "deleted_head_info", latest_rv_info))
+                continue
+            else:
+                relations.append(Relationship(head, "head_info", latest_rv_info, revision = latest_rv_info['revision'], action = rel))
+        tx = self.neo4j.graph.begin()
+        for rel in relations:
+            tx.create(rel)
+        tx.commit()
+
+        print(f"최신 relations 노드 개수: {len(relations)}")
+
+
 
 
 
