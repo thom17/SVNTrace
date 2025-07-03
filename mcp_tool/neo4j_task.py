@@ -25,9 +25,9 @@ mcp = FastMCP("taskDB")
 @mcp.tool()
 def make_head_filters_task(task_str: str) -> str:
     """
-    헤더 필터링 작업을 생성합니다.
+    메인 작업 생성 후 헤더 메서드 정보로 서브 작업을 생성합니다.
     :param task_str: 작업 문자열
-    :return: 작업 ID
+    :return: 메인 작업 ID, 서브 작업 수
     """
 
     main_id = taskDB.create_main_task(task_str)
@@ -46,15 +46,15 @@ def make_head_filters_task(task_str: str) -> str:
     return f"작업이 생성되었습니다. ID: {main_id}, 작업 수: {len(list_sub_task_str)}"
 
 @mcp.tool()
-def solve_sub_task(task_id: int, answer: str) -> str:
+def solve_sub_task(task_id: int, result: str) -> str:
     """
     서브 작업을 해결합니다.
     :param task_id: 작업 ID
-    :param answer: 답변 (Yes or No)
+    :param result: 답변
     :return: 결과 메시지
     """
 
-    taskDB.update_sub_task(task_id, answer)
+    taskDB.update_sub_task(task_id, result)
     after_tasks = taskDB.fetch_pending_sub_tasks()
 
     return f'{len(after_tasks)} 개의 서브 작업이 남아 있습니다.'
