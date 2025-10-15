@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>SVN Log Viewer</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        .container { max-width: 800px; margin: auto; }
+        .result { margin-top: 2em; }
+        .log-entry { border-bottom: 1px solid #ccc; padding: 1em 0; }
+        .btn { padding: 0.5em 1em; margin-top: 1em; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>SVN Log Viewer</h1>
+    <form id="searchForm">
+        <label for="search_path">검색 경로:</label>
+        <input type="text" id="search_path" name="search_path" required>
+        <button type="submit" class="btn">검색</button>
+    </form>
+    <button id="saveBtn" class="btn">DB 저장</button>
+    <div class="result" id="resultArea"></div>
+</div>
+<script>
+document.getElementById('searchForm').onsubmit = async function(e) {
+    e.preventDefault();
+    const path = document.getElementById('search_path').value;
+    const res = await fetch('/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `search_path=${encodeURIComponent(path)}`
+    });
+    const data = await res.json();
+    showResults(data);
+};
+
+document.getElementById('saveBtn').onclick = async function() {
+    const res = await fetch('/save_db', { method: 'POST' });
+    const data = await res.json();
+    alert(data.message || '저장 완료');
+};
+
+function showResults(data) {
+    const area = document.getElementById('resultArea');
+    if (!data || !data.results || data.results.length === 0) {
+        area.innerHTML = '<p>검색 결과가 없습니다.</p>';
+        return;
+    }
+    area.innerHTML = data.results.map(log => `
+        <div class="log-entry">
+            <strong>Revision:</strong> ${log.revision}<br>
+            <strong>Message:</strong> ${log.msg}<br>
+            <strong>Files:</strong> ${log.files}
+        </div>
+    `).join('');
+}
+</script>
+</body>
+</html>
+
