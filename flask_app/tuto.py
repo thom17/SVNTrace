@@ -1,6 +1,6 @@
 from flask import Flask, request, render_template_string, jsonify
-import svn_manager.svn_manager as SVNManager
-from svn_manager.svn_data import Log, FileDiff
+import svn_managers.svn_manager as SVNManager
+from svn_managers.svn_data import Log, FileDiff
 
 from neo4j_manager.neo4jHandler import Neo4jHandler, Node
 
