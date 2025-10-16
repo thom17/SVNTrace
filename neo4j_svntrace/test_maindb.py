@@ -1,4 +1,4 @@
-from neo4j_svntrace.maindb import MainDBManager
+from neo4j_svntrace.maindb import TraceDataBase
 import os
 def os_path_check(path1, path2):
     return os.path.normpath(path1) == os.path.normpath(path2)
@@ -27,7 +27,7 @@ def os_path_check(path1, path2):
 def test_update_trace():
     print(test_update_trace)
 
-    db_manager = MainDBManager()
+    db_manager = TraceDataBase()
 
     db_manager.update_trace()
 

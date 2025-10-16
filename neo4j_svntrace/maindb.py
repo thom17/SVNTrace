@@ -10,15 +10,14 @@ import neo4j_svntrace.constants as ENodeName
 
 from neo4j_manager.neo4jHandler import Neo4jHandler
 
-import svn_manager.svn_manager as SVNManager
-from svn_manager.svn_data import Log, FileDiff
+import svn_managers.svn_manager as SVNManager
+from svn_managers.svn_data import Log, FileDiff
 
 from clangParser.datas.CUnit import CUnit, Cursor
 import oms.Mapper as OMSMapper
 
 
 from svn_oms.dataset.rv_info_factory import RvUnit, info2Rvinfo
-
 
 PROJECT_PATH = r'D:\dev\AutoPlanning\forDB'
 CYPER_PATH_BY_REVISIONS = \
@@ -32,7 +31,7 @@ CYPER_GET_FILE_DIFF = \
 WHERE n.filepath = $filepath AND n.revision = $revision
 RETURN n
 '''
-class MainDBManager:
+class TraceDataBase:
     '''
     Neo4j DB를 관리하는 클래스
     DB에 해당 데이터가 저장되어있는지 확인하고, 없으면 저장합니다.
@@ -40,6 +39,44 @@ class MainDBManager:
 
     def __init__(self, uri="bolt://localhost:7687", user="neo4j", database='test', password="123456789"):
         self.neo4j: Neo4jHandler = Neo4jHandler(uri=uri, user=user, password=password, database=database)
+        self.database: str = database  # 현재 DB명 보관
+
+    # --- 위임/헬퍼 메서드 추가 ---
+    def get_db_names(self) -> List[str]:
+        return self.neo4j.get_db_names()
+
+    def get_node_count(self) -> int:
+        return self.neo4j.get_node_count()
+
+    def get_last_modified(self) -> str:
+        return self.neo4j.get_last_modified()
+
+    def print_info(self):
+        return self.neo4j.print_info()
+
+
+    # #db rv 와 path rv 쌍 가져오기
+    # def get_head_rv_pair(self) -> tuple[str, str]:
+    #     '''
+    #     to do:
+    #     로컬 패스를 가져와야함
+    #     1. head노드에 프로젝트 경로 추가해야함
+    #     2. 프로젝트 경로를 객체마다 받도록 수정해야함 (현제는 상수 값 사용)
+    #     3. 리비전 종류가 3개임 (DB, 로컬, repo)
+    #     '''
+    #     query = "MATCH (h:Head) return h"
+    #     result = self.neo4j.do_query(query)
+    #     if result:
+    #         db_rv = result[0]['h']['revision']
+    #         local_path = result[0]['h']['project_path']
+    #         SVNManager.get
+    #     else:
+    #         db_rv = None
+
+
+
+
+
 
     def __check_revision(self, revision: str) -> bool:
         '''

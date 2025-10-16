@@ -1,4 +1,4 @@
-from neo4j_svntrace.maindb import MainDBManager
+from neo4j_svntrace.maindb import TraceDataBase
 import os
 
 # def test_run():
@@ -10,7 +10,7 @@ import os
 
 
 
-db = MainDBManager()
+db = TraceDataBase()
 # db.neo4j.delete_all_nodes()
 
 # db.reconnect_trace_relationship()
