@@ -69,7 +69,8 @@
     <div class="summary" id="loginSummary">
         <div><strong>선택된 DB:</strong> <span id="summaryDb">-</span></div>
         <div><strong>마지막 수정:</strong> <span id="summaryLast">-</span></div>
-        <button class="btn" id="createDbBtn">DB 생성</button>
+        <button class="btn" id="toggleDbBtn" type="button">DB 선택</button>
+        <button class="btn" id="createDbBtn" type="button">DB 생성</button>
     </div>
 
     <div class="db-list" id="dbListArea" style="display:none;">
@@ -131,6 +132,7 @@ document.getElementById('loginForm').onsubmit = async function(e) {
             // 로그인 정보 입력 UI 숨김
             document.getElementById('loginForm').style.display = 'none';
             dbCache = data.dbs || [];
+            // 리스트 내용만 갱신(표시는 토글 버튼으로 제어)
             showDbList(dbCache, data.active_db);
             updateSummary(data.active_db);
         } else {
@@ -146,7 +148,8 @@ document.getElementById('loginForm').onsubmit = async function(e) {
 };
 
 function showDbList(dbs, active) {
-    document.getElementById('dbListArea').style.display = 'block';
+    // 자동 표시 제거(토글 버튼에서 제어)
+    // document.getElementById('dbListArea').style.display = 'block';
     const dbItems = document.getElementById('dbItems');
     dbItems.innerHTML = dbs.map(db => `
         <div class="db-item${db.name === active ? ' active' : ''}" data-db="${db.name}">
@@ -170,7 +173,7 @@ function showDbList(dbs, active) {
                 const data = await res.json();
                 if (data.success) {
                     activeDb = dbName;
-                    // 하이라이트 갱신 및 요약 갱신
+                    // 표시 상태는 유지, 내용만 갱신
                     showDbList(dbs, dbName);
                     updateSummary(dbName);
                 } else {
@@ -186,6 +189,22 @@ function showDbList(dbs, active) {
     });
 }
 
+// DB 리스트 토글 버튼
+document.getElementById('toggleDbBtn').onclick = function() {
+    const area = document.getElementById('dbListArea');
+    const btn = document.getElementById('toggleDbBtn');
+    const visible = area.style.display !== 'none';
+    if (visible) {
+        area.style.display = 'none';
+        btn.textContent = 'DB 선택';
+    } else {
+        // 최신 상태로 렌더링 후 표시
+        showDbList(dbCache, activeDb);
+        area.style.display = 'block';
+        btn.textContent = 'DB 목록 닫기';
+    }
+};
+
 // DB 생성 버튼
 document.getElementById('createDbBtn').onclick = async function() {
     const name = prompt('생성할 DB 이름을 입력하세요 (영문/숫자/밑줄 권장):');
@@ -200,10 +219,13 @@ document.getElementById('createDbBtn').onclick = async function() {
         const data = await res.json();
         if (data.success) {
             dbCache = data.dbs || [];
-            // 서버에서 active_db가 반환되면 반영
             const nextActive = data.active_db || activeDb;
             showDbList(dbCache, nextActive);
             updateSummary(nextActive);
+            // 토글 버튼이 "닫기" 상태이면 생성 후에도 리스트 표시 유지
+            if (document.getElementById('dbListArea').style.display !== 'none') {
+                document.getElementById('toggleDbBtn').textContent = 'DB 닫기';
+            }
             alert('DB가 생성되었습니다.');
         } else {
             alert('DB 생성 실패: ' + (data.message || ''));
