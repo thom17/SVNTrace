@@ -82,6 +82,42 @@ async def neo4j_set_active_db(request: Request):
     connector.active_db = target
     return JSONResponse({"success": True, "active_db": db_name})
 
+@app.post("/neo4j_create_db")
+async def neo4j_create_db(request: Request):
+    form = await request.form()
+    db_name = form.get("db_name")
+    if not db_name:
+        return JSONResponse({"success": False, "message": "DB 이름이 필요합니다."})
+    # 이미 존재하면 에러
+    if db_name in connector.db_map:
+        return JSONResponse({"success": False, "message": "이미 존재하는 DB입니다."})
+
+    try:
+        # 활성 핸들러가 없으면 로그인 초기화
+        if connector.active_db is None:
+            connector.login()
+        # 현재 핸들러로 DB 생성
+        connector.active_db.create_database(db_name)
+        # 맵 리프레시
+        connector.login()
+    except Exception as e:
+        return JSONResponse({"success": False, "message": f"DB 생성 실패: {e}"})
+
+    # 갱신된 DB 목록 구축
+    dbs = []
+    for name, handler in connector.db_map.items():
+        dbs.append({
+            "name": name,
+            "last_modified": handler.get_last_modified(),
+            "node_count": handler.get_node_count(),
+        })
+
+    # 생성 직후 활성 DB를 새로 만든 DB로 전환하고 싶다면 아래 라인 유지
+    # connector.active_db = connector.db_map.get(db_name)
+
+    active_db = get_active_db_name() or (dbs[0]["name"] if dbs else None)
+    return JSONResponse({"success": True, "dbs": dbs, "active_db": active_db})
+
 if __name__ == "__main__":
     # 포트 충돌/권한 문제 대응: 환경 변수로 우선 지정, 실패 시 가용 포트 자동 탐색
     import os, socket

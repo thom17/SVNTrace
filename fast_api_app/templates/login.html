@@ -11,6 +11,17 @@
         .active { background: #e0f7fa; }
         .btn { padding: 0.5em 1em; margin-top: 1em; }
 
+        /* 요약 영역 */
+        .summary {
+            display: none;
+            padding: 12px 14px;
+            border: 1px solid #e0e0e0;
+            background: #fafafa;
+            border-radius: 6px;
+            margin-bottom: 1em;
+        }
+        .summary strong { color: #1976d2; }
+
         /* 대기 오버레이 + 스피너 */
         .overlay {
             position: fixed; inset: 0;
@@ -53,6 +64,14 @@
         <label>비밀번호: <input type="password" name="password" id="password" value="123456789"></label><br>
         <button type="submit" class="btn" id="loginBtn">로그인</button>
     </form>
+
+    <!-- 로그인 후 표시되는 요약 + DB 생성 -->
+    <div class="summary" id="loginSummary">
+        <div><strong>선택된 DB:</strong> <span id="summaryDb">-</span></div>
+        <div><strong>마지막 수정:</strong> <span id="summaryLast">-</span></div>
+        <button class="btn" id="createDbBtn">DB 생성</button>
+    </div>
+
     <div class="db-list" id="dbListArea" style="display:none;">
         <h3>DB 선택</h3>
         <div id="dbItems"></div>
@@ -71,6 +90,7 @@
 
 <script>
 let activeDb = null;
+let dbCache = [];
 
 function showLoading(text) {
     const overlay = document.getElementById('loadingOverlay');
@@ -89,6 +109,16 @@ function setFormDisabled(disabled) {
     if (btn) btn.textContent = disabled ? '로그인 중...' : '로그인';
 }
 
+function updateSummary(selectedName) {
+    const sum = document.getElementById('loginSummary');
+    const dbEl = document.getElementById('summaryDb');
+    const lastEl = document.getElementById('summaryLast');
+    const found = dbCache.find(d => d.name === selectedName);
+    dbEl.textContent = selectedName || '-';
+    lastEl.textContent = (found && found.last_modified) ? found.last_modified : '-';
+    sum.style.display = 'block';
+}
+
 document.getElementById('loginForm').onsubmit = async function(e) {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -98,7 +128,11 @@ document.getElementById('loginForm').onsubmit = async function(e) {
         const res = await fetch('/neo4j_login', { method: 'POST', body: formData });
         const data = await res.json();
         if (data.success) {
-            showDbList(data.dbs, data.active_db);
+            // 로그인 정보 입력 UI 숨김
+            document.getElementById('loginForm').style.display = 'none';
+            dbCache = data.dbs || [];
+            showDbList(dbCache, data.active_db);
+            updateSummary(data.active_db);
         } else {
             alert('로그인 실패: ' + (data.message || ''));
         }
@@ -122,6 +156,7 @@ function showDbList(dbs, active) {
         </div>
     `).join('');
     activeDb = active;
+
     Array.from(dbItems.children).forEach(item => {
         item.onclick = async function() {
             const dbName = item.getAttribute('data-db');
@@ -135,7 +170,9 @@ function showDbList(dbs, active) {
                 const data = await res.json();
                 if (data.success) {
                     activeDb = dbName;
+                    // 하이라이트 갱신 및 요약 갱신
                     showDbList(dbs, dbName);
+                    updateSummary(dbName);
                 } else {
                     alert('DB 변경 실패: ' + (data.message || ''));
                 }
@@ -148,6 +185,36 @@ function showDbList(dbs, active) {
         };
     });
 }
+
+// DB 생성 버튼
+document.getElementById('createDbBtn').onclick = async function() {
+    const name = prompt('생성할 DB 이름을 입력하세요 (영문/숫자/밑줄 권장):');
+    if (!name) return;
+    try {
+        showLoading('DB 생성 중...');
+        const res = await fetch('/neo4j_create_db', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `db_name=${encodeURIComponent(name)}`
+        });
+        const data = await res.json();
+        if (data.success) {
+            dbCache = data.dbs || [];
+            // 서버에서 active_db가 반환되면 반영
+            const nextActive = data.active_db || activeDb;
+            showDbList(dbCache, nextActive);
+            updateSummary(nextActive);
+            alert('DB가 생성되었습니다.');
+        } else {
+            alert('DB 생성 실패: ' + (data.message || ''));
+        }
+    } catch (err) {
+        console.error(err);
+        alert('DB 생성 중 오류가 발생했습니다.');
+    } finally {
+        hideLoading();
+    }
+};
 </script>
 </body>
 </html>
