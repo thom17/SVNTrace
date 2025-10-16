@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Neo4j 로그인 및 DB 선택</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        .container { max-width: 500px; margin: auto; }
+        .db-list { margin-top: 2em; }
+        .db-item { border-bottom: 1px solid #ccc; padding: 1em 0; cursor: pointer; }
+        .active { background: #e0f7fa; }
+        .btn { padding: 0.5em 1em; margin-top: 1em; }
+
+        /* 대기 오버레이 + 스피너 */
+        .overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.35);
+            display: none;
+            align-items: center; justify-content: center;
+            z-index: 9999;
+        }
+        .overlay.show { display: flex; }
+        .overlay-box {
+            background: #fff; padding: 16px 20px; border-radius: 8px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+            min-width: 280px; text-align: center;
+        }
+        .spinner {
+            width: 32px; height: 32px; border: 3px solid #e0e0e0; border-top-color: #1976d2;
+            border-radius: 50%; margin: 0 auto 12px; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .progress-bar {
+            height: 4px; width: 100%; background: #eee; border-radius: 2px; overflow: hidden; margin-top: 8px;
+        }
+        .progress-bar > div {
+            width: 40%; height: 100%; background: #1976d2; animation: indet 1.2s ease-in-out infinite;
+        }
+        @keyframes indet {
+            0% { margin-left: -40%; }
+            50% { margin-left: 60%; }
+            100% { margin-left: 100%; }
+        }
+        .muted { color: #666; font-size: 13px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>Neo4j 로그인</h2>
+    <form id="loginForm">
+        <label>URI: <input type="text" name="uri" id="uri" value="bolt://localhost:7687"></label><br>
+        <label>사용자: <input type="text" name="user" id="user" value="neo4j"></label><br>
+        <label>비밀번호: <input type="password" name="password" id="password" value="123456789"></label><br>
+        <button type="submit" class="btn" id="loginBtn">로그인</button>
+    </form>
+    <div class="db-list" id="dbListArea" style="display:none;">
+        <h3>DB 선택</h3>
+        <div id="dbItems"></div>
+    </div>
+</div>
+
+<!-- 대기 오버레이 -->
+<div class="overlay" id="loadingOverlay" role="alert" aria-live="assertive">
+    <div class="overlay-box">
+        <div class="spinner"></div>
+        <div id="loadingText">로그인 중입니다... 잠시만 기다려 주세요.</div>
+        <div class="progress-bar"><div></div></div>
+        <div class="muted" style="margin-top:8px;">작업이 오래 걸리면 새로고침하지 말고 잠시 기다려 주세요.</div>
+    </div>
+</div>
+
+<script>
+let activeDb = null;
+
+function showLoading(text) {
+    const overlay = document.getElementById('loadingOverlay');
+    const t = document.getElementById('loadingText');
+    if (text) t.textContent = text;
+    overlay.classList.add('show');
+}
+function hideLoading() {
+    document.getElementById('loadingOverlay').classList.remove('show');
+}
+
+function setFormDisabled(disabled) {
+    const form = document.getElementById('loginForm');
+    Array.from(form.elements).forEach(el => el.disabled = disabled);
+    const btn = document.getElementById('loginBtn');
+    if (btn) btn.textContent = disabled ? '로그인 중...' : '로그인';
+}
+
+document.getElementById('loginForm').onsubmit = async function(e) {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    try {
+        setFormDisabled(true);
+        showLoading('로그인 중입니다... 잠시만 기다려 주세요.');
+        const res = await fetch('/neo4j_login', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (data.success) {
+            showDbList(data.dbs, data.active_db);
+        } else {
+            alert('로그인 실패: ' + (data.message || ''));
+        }
+    } catch (err) {
+        console.error(err);
+        alert('네트워크 오류 또는 서버 오류가 발생했습니다.');
+    } finally {
+        hideLoading();
+        setFormDisabled(false);
+    }
+};
+
+function showDbList(dbs, active) {
+    document.getElementById('dbListArea').style.display = 'block';
+    const dbItems = document.getElementById('dbItems');
+    dbItems.innerHTML = dbs.map(db => `
+        <div class="db-item${db.name === active ? ' active' : ''}" data-db="${db.name}">
+            <strong>${db.name}</strong><br>
+            최근 수정일: ${db.last_modified || '-'}<br>
+            노드 수: ${db.node_count}
+        </div>
+    `).join('');
+    activeDb = active;
+    Array.from(dbItems.children).forEach(item => {
+        item.onclick = async function() {
+            const dbName = item.getAttribute('data-db');
+            try {
+                showLoading('데이터베이스 전환 중...');
+                const res = await fetch('/neo4j_set_active_db', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `db_name=${encodeURIComponent(dbName)}`
+                });
+                const data = await res.json();
+                if (data.success) {
+                    activeDb = dbName;
+                    showDbList(dbs, dbName);
+                } else {
+                    alert('DB 변경 실패: ' + (data.message || ''));
+                }
+            } catch (err) {
+                console.error(err);
+                alert('DB 변경 중 오류가 발생했습니다.');
+            } finally {
+                hideLoading();
+            }
+        };
+    });
+}
+</script>
+</body>
+</html>
