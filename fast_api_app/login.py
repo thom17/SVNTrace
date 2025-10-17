@@ -57,10 +57,11 @@ async def neo4j_login(request: Request):
             # 변경: connector 메서드 -> handler 인스턴스 메서드 호출
             "last_modified": handler.get_last_modified(),
             "node_count": handler.get_node_count(),
+            "head_revision": handler.get_head_revision(),  # 추가: HEAD 리비전
         })
 
     active_db = get_active_db_name() or (dbs[0]["name"] if dbs else None)
-    # active_db 객체가 없으면 첫 번째 DB를 활성화해 둠
+    # active_db 객체가 없으면 첫 번째 DB를 활성화해 둡니다.
     if active_db and (connector.active_db is None or connector.db_map.get(active_db) is not connector.active_db):
         connector.active_db = connector.db_map.get(active_db)
 
@@ -110,6 +111,7 @@ async def neo4j_create_db(request: Request):
             "name": name,
             "last_modified": handler.get_last_modified(),
             "node_count": handler.get_node_count(),
+            "head_revision": handler.get_head_revision(),  # 추가: HEAD 리비전
         })
 
     # 생성 직후 활성 DB를 새로 만든 DB로 전환하고 싶다면 아래 라인 유지

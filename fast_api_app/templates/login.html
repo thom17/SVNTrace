@@ -68,7 +68,9 @@
     <!-- 로그인 후 표시되는 요약 + DB 생성 -->
     <div class="summary" id="loginSummary">
         <div><strong>선택된 DB:</strong> <span id="summaryDb">-</span></div>
+        <div><strong>노드 수:</strong> <span id="summaryCount">-</span></div>
         <div><strong>마지막 수정:</strong> <span id="summaryLast">-</span></div>
+        <div><strong>HEAD 리비전:</strong> <span id="summaryHead">-</span></div>
         <button class="btn" id="toggleDbBtn" type="button">DB 선택</button>
         <button class="btn" id="createDbBtn" type="button">DB 생성</button>
     </div>
@@ -114,9 +116,15 @@ function updateSummary(selectedName) {
     const sum = document.getElementById('loginSummary');
     const dbEl = document.getElementById('summaryDb');
     const lastEl = document.getElementById('summaryLast');
+    const countEl = document.getElementById('summaryCount');
+    const headEl = document.getElementById('summaryHead');
     const found = dbCache.find(d => d.name === selectedName);
+
     dbEl.textContent = selectedName || '-';
+    countEl.textContent = (found && typeof found.node_count !== 'undefined') ? found.node_count : '-';
     lastEl.textContent = (found && found.last_modified) ? found.last_modified : '-';
+    headEl.textContent = (found && found.head_revision) ? found.head_revision : '-';
+
     sum.style.display = 'block';
 }
 
@@ -134,7 +142,7 @@ document.getElementById('loginForm').onsubmit = async function(e) {
             dbCache = data.dbs || [];
             // 리스트 내용만 갱신(표시는 토글 버튼으로 제어)
             showDbList(dbCache, data.active_db);
-            updateSummary(data.active_db);
+            updateSummary(data.active_db);  // 요약에 노드수/HEAD 포함 갱신
         } else {
             alert('로그인 실패: ' + (data.message || ''));
         }
@@ -155,7 +163,8 @@ function showDbList(dbs, active) {
         <div class="db-item${db.name === active ? ' active' : ''}" data-db="${db.name}">
             <strong>${db.name}</strong><br>
             최근 수정일: ${db.last_modified || '-'}<br>
-            노드 수: ${db.node_count}
+            노드 수: ${typeof db.node_count !== 'undefined' ? db.node_count : '-'}<br>
+            HEAD 리비전: ${db.head_revision || '-'}
         </div>
     `).join('');
     activeDb = active;
@@ -175,7 +184,7 @@ function showDbList(dbs, active) {
                     activeDb = dbName;
                     // 표시 상태는 유지, 내용만 갱신
                     showDbList(dbs, dbName);
-                    updateSummary(dbName);
+                    updateSummary(dbName); // 전환 시 요약 갱신(노드수/HEAD 포함)
                 } else {
                     alert('DB 변경 실패: ' + (data.message || ''));
                 }
@@ -221,7 +230,7 @@ document.getElementById('createDbBtn').onclick = async function() {
             dbCache = data.dbs || [];
             const nextActive = data.active_db || activeDb;
             showDbList(dbCache, nextActive);
-            updateSummary(nextActive);
+            updateSummary(nextActive); // 생성 후 요약 갱신(노드수/HEAD 포함)
             // 토글 버튼이 "닫기" 상태이면 생성 후에도 리스트 표시 유지
             if (document.getElementById('dbListArea').style.display !== 'none') {
                 document.getElementById('toggleDbBtn').textContent = 'DB 닫기';

@@ -62,7 +62,8 @@ class TraceDataBase:
     #     로컬 패스를 가져와야함
     #     1. head노드에 프로젝트 경로 추가해야함
     #     2. 프로젝트 경로를 객체마다 받도록 수정해야함 (현제는 상수 값 사용)
-    #     3. 리비전 종류가 3개임 (DB, 로컬, repo)
+    #     3. 리비전 종류가 3개임 (DB, 로컬, repo).
+    #     4. 그냥 각각 가져오는 메서드를 정의하는게 나을듯
     #     '''
     #     query = "MATCH (h:Head) return h"
     #     result = self.neo4j.do_query(query)
@@ -73,7 +74,14 @@ class TraceDataBase:
     #     else:
     #         db_rv = None
 
-
+    def get_head_revision(self) -> Optional[str]:
+        '''
+        DB의 head 노드의 revision을 반환합니다.
+        :return: revision or None
+        '''
+        query = "MATCH (h:Head) return h"
+        result = self.neo4j.do_query(query)
+        return result[0]['h']['revision'] if result else None
 
 
 

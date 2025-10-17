@@ -32,6 +32,7 @@ class Neo4jConnector:
             db.print_info()
             print("node count : ", db.get_node_count())
             print("last modified : ", db.get_last_modified())
+            print("head revision : ", db.get_head_revision())
 
 
 if __name__ == "__main__":
