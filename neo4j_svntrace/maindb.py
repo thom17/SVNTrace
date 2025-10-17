@@ -37,9 +37,11 @@ class TraceDataBase:
     DB에 해당 데이터가 저장되어있는지 확인하고, 없으면 저장합니다.
     '''
 
-    def __init__(self, uri="bolt://localhost:7687", user="neo4j", database='test', password="123456789"):
+    def __init__(self, uri="bolt://localhost:7687", user="neo4j", database='test', password="123456789", local_path=PROJECT_PATH):
         self.neo4j: Neo4jHandler = Neo4jHandler(uri=uri, user=user, password=password, database=database)
         self.database: str = database  # 현재 DB명 보관
+        self.local_path: str = local_path  # 현재 프로젝트 경로 보관
+        self.repo_path: str = SVNManager.get_repo_url(self.local_path)
 
     # --- 위임/헬퍼 메서드 추가 ---
     def get_db_names(self) -> List[str]:
@@ -240,7 +242,7 @@ class TraceDataBase:
         WITH collect(n) AS logs
         UNWIND range(0, size(logs)-2) AS i
         WITH logs[i] AS from, logs[i+1] AS to
-        MERGE (from)-[:next]->(to)
+        MERGE (from)-[:next_log]->(to)
         """
         self.neo4j.do_query(query)
         print(f"Log-Log 연결 완료")
@@ -275,7 +277,7 @@ class TraceDataBase:
             WITH file_path, collect(file) AS sorted_files
             UNWIND range(0, size(sorted_files)-2) AS i
             WITH sorted_files[i] AS from, sorted_files[i+1] AS to
-            MERGE (from)-[:next]->(to)
+            MERGE (from)-[:next_diff]->(to)
                 """
         self.neo4j.do_query(query)
         print(f"FileDiff-FileDiff 연결 완료")
@@ -346,10 +348,10 @@ class TraceDataBase:
         self.neo4j.do_query(query)
 
         # 최신 Log 노드 가져오기 및 head 노드 생성
-        query = """
+        query = f"""
         MATCH (l:Log)
         ORDER BY toInteger(l.revision) DESC LIMIT 1
-        CREATE (h:Head {created_at: datetime(), revision: l.revision})
+        CREATE (h:Head {'{'}created_at: datetime(), revision: l.revision, local_path: '{self.local_path}'{'}'})
         MERGE (h)-[:log]->(l)
         RETURN h
         """
@@ -477,63 +479,34 @@ class TraceDataBase:
 
     def update_trace(self):
         '''
-        현제 저장된  FileDiff를 기준으로 추적 갱신.
-        기존 연결과 동일하지 않다면 RvInfo 도 추적
+        headRV 부터 repo RV 까지 업데이트를 진행합니다.
+        https://github.com/thom17/SVNTrace/issues/4
         '''
-        def __get_connect_relationship(path: str, revision_list: list[str]):
-            # 연결된 노드가 없을 경우
-            before = None
-            next = None
-            relations_list = []
-            for revision in revision_list:
-                #to do : 해당 리비전의 FileDiff 노드 가져오기
-                node = self.get_rv_node_by_path(ENodeName.FILE_DIFF, revision, path)
-                if before:
-                    # to do : 기존 연결된 노드가 있고 동일할 경우 스킵
-                    existing_rels = list(self.neo4j.graph.match((before, None), r_type='next'))
-                    if existing_rels:
-                        # 기존 연결된 노드가 있고 동일할 경우 스킵
-                        if existing_rels[0].end_node == node and existing_rels[0].start_node == before:
-                            continue
+        head_rv = self.get_head_revision()
+        local_rv =SVNManager.get_current_revision(self.local_path)
+        if head_rv is None:
+            head_rv = local_rv
+        repo_rv = SVNManager.get_head_revision(self.repo_path)
 
-                    relations_list.append( Relationship(before, 'next' ,node) )
-                    
-                    #cpp 및 h 파일만 info가 있고 연결
-                    if before['file_path'].endswith('.cpp') or before['file_path'].endswith('.h'):
-                        relations_list.extend( self.__get_change_infos(before, node) )
+        #head rv는 update 되지 않고 local 만 update 처리 된경우
+        if int(head_rv) < int(local_rv):
+            rv = int(head_rv) #head rv 부터 시작
+        else:
+            rv = int(local_rv)
 
+        #먼저 로컬 파일 업데이트 및 파싱
+        while rv < int(repo_rv):
+            self.update_revision(rv)
+            rv += 1
 
-                before = node
-            return relations_list
+        #모든 리비전 업데이트 후 관계 재설정
+        self.reconnect_trace_relationship()
+        # 마지막으로 head 노드 갱신
+        self.connect_head_info()
 
 
 
-        #파일별 리비전 리스트 가져오기
-        progress = 0
-        result = self.neo4j.do_query(CYPER_PATH_BY_REVISIONS)
-        for path_revisions_dict in result:
-            path = path_revisions_dict['file_path']
-            revisions = path_revisions_dict['revisions']
-            revisions.sort(reverse=False)
 
-            relations = __get_connect_relationship(path, revisions)
-
-
-            #일단 임시로 하나만 태스트
-            tx = self.neo4j.graph.begin()
-            try:
-                for rel in relations:
-                    tx.create(rel)
-                tx.commit()
-                progress += 1
-                print(f'\r{progress} / {len(result)}({progress/len(result)* 100:.2f}%)', end='\t')
-            except Exception as e:
-                tx.rollback()
-                raise e
-            # break #수행
-
-
-        print(result)
 
     def get_rv_node_by_path(self, node_name: str, revision: str, filepath : str) -> Optional[Node]:
         nodes = []
