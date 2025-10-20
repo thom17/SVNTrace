@@ -59,6 +59,18 @@ class TraceDataBase:
     def get_local_path(self) -> str:
         return self.local_path
 
+    def get_local_revision(self) -> Optional[str]:
+        try:
+            return str(SVNManager.get_current_revision(self.local_path))
+        except Exception:
+            return None
+
+    def get_repo_revision(self) -> Optional[str]:
+        try:
+            return str(SVNManager.get_head_revision(self.repo_path))
+        except Exception:
+            return None
+
     # #db rv 와 path rv 쌍 가져오기
     # def get_head_rv_pair(self) -> tuple[str, str]:
     #     '''
@@ -497,7 +509,7 @@ class TraceDataBase:
             rv = int(local_rv)
 
         #먼저 로컬 파일 업데이트 및 파싱
-        while rv < int(repo_rv):
+        while rv <= int(repo_rv):
             self.update_revision(rv)
             rv += 1
 

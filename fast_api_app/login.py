@@ -58,7 +58,9 @@ async def neo4j_login(request: Request):
             "last_modified": handler.get_last_modified(),
             "node_count": handler.get_node_count(),
             "head_revision": handler.get_head_revision(),
-            "local_path": handler.get_local_path(),  # 추가: 로컬 경로
+            "local_path": handler.get_local_path(),
+            "local_revision": handler.get_local_revision(),
+            "repo_revision": handler.get_repo_revision(),
         })
 
     active_db = get_active_db_name() or (dbs[0]["name"] if dbs else None)
@@ -113,7 +115,9 @@ async def neo4j_create_db(request: Request):
             "last_modified": handler.get_last_modified(),
             "node_count": handler.get_node_count(),
             "head_revision": handler.get_head_revision(),
-            "local_path": handler.get_local_path(),  # 추가: 로컬 경로
+            "local_path": handler.get_local_path(),
+            "local_revision": handler.get_local_revision(),
+            "repo_revision": handler.get_repo_revision(),
         })
 
     # 생성 직후 활성 DB를 새로 만든 DB로 전환하고 싶다면 아래 라인 유지
@@ -121,6 +125,31 @@ async def neo4j_create_db(request: Request):
 
     active_db = get_active_db_name() or (dbs[0]["name"] if dbs else None)
     return JSONResponse({"success": True, "dbs": dbs, "active_db": active_db})
+
+@app.post("/update_trace")
+async def update_trace(request: Request):
+    # 활성 DB 확인
+    if connector.active_db is None:
+        return JSONResponse({"success": False, "message": "활성화된 DB가 없습니다."})
+    try:
+        # 트레이스 업데이트 실행
+        connector.active_db.update_trace()
+        # 업데이트 후 DB 목록 재수집
+        dbs = []
+        for name, handler in connector.db_map.items():
+            dbs.append({
+                "name": name,
+                "last_modified": handler.get_last_modified(),
+                "node_count": handler.get_node_count(),
+                "head_revision": handler.get_head_revision(),
+                "local_path": handler.get_local_path(),
+                "local_revision": handler.get_local_revision(),
+                "repo_revision": handler.get_repo_revision(),
+            })
+        active_db = get_active_db_name() or (dbs[0]["name"] if dbs else None)
+        return JSONResponse({"success": True, "dbs": dbs, "active_db": active_db})
+    except Exception as e:
+        return JSONResponse({"success": False, "message": f"Trace 업데이트 실패: {e}"})
 
 @app.post("/open_path")
 async def open_path(request: Request):

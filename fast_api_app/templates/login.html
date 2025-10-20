@@ -72,9 +72,12 @@
         <div><strong>노드 수:</strong> <span id="summaryCount">-</span></div>
         <div><strong>마지막 수정:</strong> <span id="summaryLast">-</span></div>
         <div><strong>HEAD 리비전:</strong> <span id="summaryHead">-</span></div>
+        <div><strong>Local 리비전:</strong> <span id="summaryLocal">-</span></div>
+        <div><strong>Repo 리비전:</strong> <span id="summaryRepo">-</span></div>
         <div><strong>로컬 경로:</strong> <span id="summaryPath" class="link" title="탐색기에서 열기">-</span></div>
         <button class="btn" id="toggleDbBtn" type="button">DB 선택</button>
         <button class="btn" id="createDbBtn" type="button">DB 생성</button>
+        <button class="btn" id="updateTraceBtn" type="button">Trace 업데이트</button>
     </div>
 
     <div class="db-list" id="dbListArea" style="display:none;">
@@ -142,12 +145,17 @@ function updateSummary(selectedName) {
     const countEl = document.getElementById('summaryCount');
     const headEl = document.getElementById('summaryHead');
     const pathEl = document.getElementById('summaryPath');
+    const localEl = document.getElementById('summaryLocal');
+    const repoEl = document.getElementById('summaryRepo');
     const found = dbCache.find(d => d.name === selectedName);
 
     dbEl.textContent = selectedName || '-';
     countEl.textContent = (found && typeof found.node_count !== 'undefined') ? found.node_count : '-';
     lastEl.textContent = (found && found.last_modified) ? found.last_modified : '-';
     headEl.textContent = (found && found.head_revision) ? found.head_revision : '-';
+    localEl.textContent = (found && found.local_revision) ? found.local_revision : '-';
+    repoEl.textContent = (found && found.repo_revision) ? found.repo_revision : '-';
+
     const path = (found && found.local_path) ? found.local_path : '';
     pathEl.textContent = path || '-';
     pathEl.onclick = () => path ? openPath(path) : null;
@@ -190,6 +198,8 @@ function showDbList(dbs, active) {
             최근 수정일: ${db.last_modified || '-'}<br>
             노드 수: ${typeof db.node_count !== 'undefined' ? db.node_count : '-'}<br>
             HEAD 리비전: ${db.head_revision || '-'}<br>
+            Local 리비전: ${db.local_revision || '-'}<br>
+            Repo 리비전: ${db.repo_revision || '-'}<br>
             로컬 경로: <span class="link" data-path="${db.local_path || ''}">${db.local_path || '-'}</span>
         </div>
     `).join('');
@@ -215,9 +225,8 @@ function showDbList(dbs, active) {
                 const data = await res.json();
                 if (data.success) {
                     activeDb = dbName;
-                    // 표시 상태는 유지, 내용만 갱신
                     showDbList(dbs, dbName);
-                    updateSummary(dbName); // 전환 시 요약 갱신(노드수/HEAD 포함)
+                    updateSummary(dbName);
                 } else {
                     alert('DB 변경 실패: ' + (data.message || ''));
                 }
@@ -240,10 +249,10 @@ document.getElementById('toggleDbBtn').onclick = function() {
         area.style.display = 'none';
         btn.textContent = 'DB 선택';
     } else {
-        // 최신 상태로 렌더링 후 표시
+        // 최신 상태 렌더링 후 표시
         showDbList(dbCache, activeDb);
         area.style.display = 'block';
-        btn.textContent = 'DB 목록 닫기';
+        btn.textContent = 'DB 닫기';
     }
 };
 
@@ -263,11 +272,7 @@ document.getElementById('createDbBtn').onclick = async function() {
             dbCache = data.dbs || [];
             const nextActive = data.active_db || activeDb;
             showDbList(dbCache, nextActive);
-            updateSummary(nextActive); // 생성 후 요약 갱신(노드수/HEAD 포함)
-            // 토글 버튼이 "닫기" 상태이면 생성 후에도 리스트 표시 유지
-            if (document.getElementById('dbListArea').style.display !== 'none') {
-                document.getElementById('toggleDbBtn').textContent = 'DB 닫기';
-            }
+            updateSummary(nextActive);
             alert('DB가 생성되었습니다.');
         } else {
             alert('DB 생성 실패: ' + (data.message || ''));
@@ -275,6 +280,29 @@ document.getElementById('createDbBtn').onclick = async function() {
     } catch (err) {
         console.error(err);
         alert('DB 생성 중 오류가 발생했습니다.');
+    } finally {
+        hideLoading();
+    }
+};
+
+// Trace 업데이트 버튼
+document.getElementById('updateTraceBtn').onclick = async function() {
+    try {
+        showLoading('Trace 업데이트 중...');
+        const res = await fetch('/update_trace', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            dbCache = data.dbs || [];
+            const nextActive = data.active_db || activeDb;
+            showDbList(dbCache, nextActive);
+            updateSummary(nextActive);
+            alert('Trace 업데이트가 완료되었습니다.');
+        } else {
+            alert('Trace 업데이트 실패: ' + (data.message || ''));
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Trace 업데이트 중 오류가 발생했습니다.');
     } finally {
         hideLoading();
     }

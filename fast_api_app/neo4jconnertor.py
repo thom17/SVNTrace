@@ -33,6 +33,8 @@ class Neo4jConnector:
             print("node count : ", db.get_node_count())
             print("last modified : ", db.get_last_modified())
             print("head revision : ", db.get_head_revision())
+            print("local revision : ", db.get_local_revision())
+            print("repo revision : ", db.get_repo_revision())
             print("local path : ", db.get_local_path())  # 선택사항: 콘솔 출력
 
 
