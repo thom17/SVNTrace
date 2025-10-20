@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from typing import Optional
 import uvicorn  # 로컬 테스트 실행을 위한 추가
+import os, socket  # 기존 __main__ 블록과 /open_path에 사용
 
 # 기존의 임시 Neo4jConnector 클래스는 제거하고 실제 커넥터를 사용
 from fast_api_app.neo4jconnertor import Neo4jConnector  # 주의: 파일명 철자(neo4jconnertor.py)
@@ -54,10 +55,10 @@ async def neo4j_login(request: Request):
     for name, handler in connector.db_map.items():
         dbs.append({
             "name": name,
-            # 변경: connector 메서드 -> handler 인스턴스 메서드 호출
             "last_modified": handler.get_last_modified(),
             "node_count": handler.get_node_count(),
-            "head_revision": handler.get_head_revision(),  # 추가: HEAD 리비전
+            "head_revision": handler.get_head_revision(),
+            "local_path": handler.get_local_path(),  # 추가: 로컬 경로
         })
 
     active_db = get_active_db_name() or (dbs[0]["name"] if dbs else None)
@@ -111,7 +112,8 @@ async def neo4j_create_db(request: Request):
             "name": name,
             "last_modified": handler.get_last_modified(),
             "node_count": handler.get_node_count(),
-            "head_revision": handler.get_head_revision(),  # 추가: HEAD 리비전
+            "head_revision": handler.get_head_revision(),
+            "local_path": handler.get_local_path(),  # 추가: 로컬 경로
         })
 
     # 생성 직후 활성 DB를 새로 만든 DB로 전환하고 싶다면 아래 라인 유지
@@ -120,10 +122,31 @@ async def neo4j_create_db(request: Request):
     active_db = get_active_db_name() or (dbs[0]["name"] if dbs else None)
     return JSONResponse({"success": True, "dbs": dbs, "active_db": active_db})
 
+@app.post("/open_path")
+async def open_path(request: Request):
+    form = await request.form()
+    target_path = form.get("path")
+    if not target_path:
+        return JSONResponse({"success": False, "message": "path가 필요합니다."})
+    if not os.path.exists(target_path):
+        return JSONResponse({"success": False, "message": f"경로가 존재하지 않습니다: {target_path}"})
+    try:
+        # Windows 우선
+        if os.name == "nt":
+            os.startfile(target_path)  # type: ignore[attr-defined]
+        else:
+            # macOS / Linux 대응
+            import subprocess, sys
+            if sys.platform == "darwin":
+                subprocess.Popen(["open", target_path])
+            else:
+                subprocess.Popen(["xdg-open", target_path])
+        return JSONResponse({"success": True})
+    except Exception as e:
+        return JSONResponse({"success": False, "message": f"탐색기 실행 실패: {e}"})
+
 if __name__ == "__main__":
     # 포트 충돌/권한 문제 대응: 환경 변수로 우선 지정, 실패 시 가용 포트 자동 탐색
-    import os, socket
-
     def _port_in_use(host: str, port: int) -> bool:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(0.2)

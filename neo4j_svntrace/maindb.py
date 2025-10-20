@@ -56,6 +56,8 @@ class TraceDataBase:
     def print_info(self):
         return self.neo4j.print_info()
 
+    def get_local_path(self) -> str:
+        return self.local_path
 
     # #db rv 와 path rv 쌍 가져오기
     # def get_head_rv_pair(self) -> tuple[str, str]:

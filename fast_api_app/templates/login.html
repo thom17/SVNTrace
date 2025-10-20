@@ -53,6 +53,7 @@
             100% { margin-left: 100%; }
         }
         .muted { color: #666; font-size: 13px; }
+        .link { color:#1976d2; text-decoration: underline; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -71,6 +72,7 @@
         <div><strong>노드 수:</strong> <span id="summaryCount">-</span></div>
         <div><strong>마지막 수정:</strong> <span id="summaryLast">-</span></div>
         <div><strong>HEAD 리비전:</strong> <span id="summaryHead">-</span></div>
+        <div><strong>로컬 경로:</strong> <span id="summaryPath" class="link" title="탐색기에서 열기">-</span></div>
         <button class="btn" id="toggleDbBtn" type="button">DB 선택</button>
         <button class="btn" id="createDbBtn" type="button">DB 생성</button>
     </div>
@@ -112,18 +114,43 @@ function setFormDisabled(disabled) {
     if (btn) btn.textContent = disabled ? '로그인 중...' : '로그인';
 }
 
+async function openPath(path) {
+    if (!path) return;
+    try {
+        showLoading('탐색기를 여는 중...');
+        const res = await fetch('/open_path', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `path=${encodeURIComponent(path)}`
+        });
+        const data = await res.json();
+        if (!data.success) {
+            alert('탐색기 열기 실패: ' + (data.message || ''));
+        }
+    } catch (e) {
+        console.error(e);
+        alert('탐색기 실행 중 오류가 발생했습니다.');
+    } finally {
+        hideLoading();
+    }
+}
+
 function updateSummary(selectedName) {
     const sum = document.getElementById('loginSummary');
     const dbEl = document.getElementById('summaryDb');
     const lastEl = document.getElementById('summaryLast');
     const countEl = document.getElementById('summaryCount');
     const headEl = document.getElementById('summaryHead');
+    const pathEl = document.getElementById('summaryPath');
     const found = dbCache.find(d => d.name === selectedName);
 
     dbEl.textContent = selectedName || '-';
     countEl.textContent = (found && typeof found.node_count !== 'undefined') ? found.node_count : '-';
     lastEl.textContent = (found && found.last_modified) ? found.last_modified : '-';
     headEl.textContent = (found && found.head_revision) ? found.head_revision : '-';
+    const path = (found && found.local_path) ? found.local_path : '';
+    pathEl.textContent = path || '-';
+    pathEl.onclick = () => path ? openPath(path) : null;
 
     sum.style.display = 'block';
 }
@@ -156,21 +183,27 @@ document.getElementById('loginForm').onsubmit = async function(e) {
 };
 
 function showDbList(dbs, active) {
-    // 자동 표시 제거(토글 버튼에서 제어)
-    // document.getElementById('dbListArea').style.display = 'block';
     const dbItems = document.getElementById('dbItems');
     dbItems.innerHTML = dbs.map(db => `
         <div class="db-item${db.name === active ? ' active' : ''}" data-db="${db.name}">
             <strong>${db.name}</strong><br>
             최근 수정일: ${db.last_modified || '-'}<br>
             노드 수: ${typeof db.node_count !== 'undefined' ? db.node_count : '-'}<br>
-            HEAD 리비전: ${db.head_revision || '-'}
+            HEAD 리비전: ${db.head_revision || '-'}<br>
+            로컬 경로: <span class="link" data-path="${db.local_path || ''}">${db.local_path || '-'}</span>
         </div>
     `).join('');
     activeDb = active;
 
     Array.from(dbItems.children).forEach(item => {
-        item.onclick = async function() {
+        // DB 선택 클릭
+        item.onclick = async function(e) {
+            // 경로 클릭은 별도 처리하고 이벤트 버블링 방지
+            const target = e.target;
+            if (target && target.classList.contains('link') && target.dataset.path) {
+                e.stopPropagation();
+                return openPath(target.dataset.path);
+            }
             const dbName = item.getAttribute('data-db');
             try {
                 showLoading('데이터베이스 전환 중...');

@@ -33,6 +33,7 @@ class Neo4jConnector:
             print("node count : ", db.get_node_count())
             print("last modified : ", db.get_last_modified())
             print("head revision : ", db.get_head_revision())
+            print("local path : ", db.get_local_path())  # 선택사항: 콘솔 출력
 
 
 if __name__ == "__main__":
