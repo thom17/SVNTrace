@@ -78,6 +78,11 @@
         <button class="btn" id="toggleDbBtn" type="button">DB 선택</button>
         <button class="btn" id="createDbBtn" type="button">DB 생성</button>
         <button class="btn" id="updateTraceBtn" type="button">Trace 업데이트</button>
+        <!-- 추가: Revision 업데이트 UI -->
+        <div style="margin-top:10px;">
+            <input type="text" id="revisionInput" placeholder="리비전 입력" style="width:140px;">
+            <button class="btn" id="updateRevisionBtn" type="button">Update Revision</button>
+        </div>
     </div>
 
     <div class="db-list" id="dbListArea" style="display:none;">
@@ -303,6 +308,38 @@ document.getElementById('updateTraceBtn').onclick = async function() {
     } catch (err) {
         console.error(err);
         alert('Trace 업데이트 중 오류가 발생했습니다.');
+    } finally {
+        hideLoading();
+    }
+};
+
+// Update Revision 버튼 핸들러
+document.getElementById('updateRevisionBtn').onclick = async function() {
+    const rv = (document.getElementById('revisionInput').value || '').trim();
+    if (!rv) {
+        alert('리비전을 입력해 주세요.');
+        return;
+    }
+    try {
+        showLoading('리비전 업데이트 중...');
+        const res = await fetch('/update_revision', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `revision=${encodeURIComponent(rv)}`
+        });
+        const data = await res.json();
+        if (data.success) {
+            dbCache = data.dbs || [];
+            const nextActive = data.active_db || activeDb;
+            showDbList(dbCache, nextActive);
+            updateSummary(nextActive);
+            alert('리비전 업데이트가 완료되었습니다.');
+        } else {
+            alert('리비전 업데이트 실패: ' + (data.message || ''));
+        }
+    } catch (err) {
+        console.error(err);
+        alert('리비전 업데이트 중 오류가 발생했습니다.');
     } finally {
         hideLoading();
     }

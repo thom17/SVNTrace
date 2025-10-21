@@ -174,6 +174,37 @@ async def open_path(request: Request):
     except Exception as e:
         return JSONResponse({"success": False, "message": f"탐색기 실행 실패: {e}"})
 
+@app.post("/update_revision")
+async def update_revision(request: Request):
+    form = await request.form()
+    revision = form.get("revision")
+    if not revision:
+        return JSONResponse({"success": False, "message": "revision 값이 필요합니다."})
+    if connector.active_db is None:
+        return JSONResponse({"success": False, "message": "활성화된 DB가 없습니다."})
+    try:
+        # 단일 리비전 업데이트 실행
+        connector.active_db.update_revision(revision)
+        # 필요 시 head/관계 갱신이 요구된다면 아래 호출 고려:
+        # connector.active_db.connect_head_info()
+    except Exception as e:
+        return JSONResponse({"success": False, "message": f"리비전 업데이트 실패: {e}"})
+
+    # 업데이트 후 DB 목록 재수집
+    dbs = []
+    for name, handler in connector.db_map.items():
+        dbs.append({
+            "name": name,
+            "last_modified": handler.get_last_modified(),
+            "node_count": handler.get_node_count(),
+            "head_revision": handler.get_head_revision(),
+            "local_path": handler.get_local_path(),
+            "local_revision": handler.get_local_revision(),
+            "repo_revision": handler.get_repo_revision(),
+        })
+    active_db = get_active_db_name() or (dbs[0]["name"] if dbs else None)
+    return JSONResponse({"success": True, "dbs": dbs, "active_db": active_db})
+
 if __name__ == "__main__":
     # 포트 충돌/권한 문제 대응: 환경 변수로 우선 지정, 실패 시 가용 포트 자동 탐색
     def _port_in_use(host: str, port: int) -> bool:
