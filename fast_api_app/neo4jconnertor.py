@@ -14,6 +14,12 @@ class Neo4jConnector:
         self.active_db: Optional[TraceDataBase] = None
         self.login()
 
+    def create_database(self, database_name: str) -> TraceDataBase:
+        if database_name in self.db_map:
+            raise ValueError(f"Database '{database_name}' already exists.")
+        new_db = TraceDataBase(uri=self.uri, user=self.user, password=self.password, database=database_name)
+        self.db_map[database_name] = new_db
+        return new_db
     def login(self):
         # self.active_db = Neo4jHandler(uri=self.uri, user=self.user, password=self.password)
         # for name in self.active_db.get_db_names():

@@ -101,7 +101,7 @@ async def neo4j_create_db(request: Request):
         if connector.active_db is None:
             connector.login()
         # 현재 핸들러로 DB 생성
-        connector.active_db.create_database(db_name)
+        connector.create_database(db_name)
         # 맵 리프레시
         connector.login()
     except Exception as e:
