@@ -240,6 +240,23 @@ class TraceDataBase:
             infos_map[info['src_name']] = info
         return infos_map
 
+    def get_latest_rv_units_per_path(self):
+        """
+        RvUnit에서 같은 file_path 별 최신(revision 최대)만 반환.
+        반환: [{'file_path': str, 'revision': int}]
+        """
+        cypher = """
+        MATCH (u:RvUnit)
+        WITH u.file_path AS file_path, max(toInteger(u.revision)) AS max_rev
+        MATCH (u2:RvUnit {file_path: file_path})
+        WHERE toInteger(u2.revision) = max_rev
+        RETURN u2
+        ORDER BY file_path
+        """
+        # RETURN u2.file_path AS file_path, toInteger(u2.revision) AS revision
+
+        return [r['u2'] for r in self.neo4j.do_query(cypher)]
+
     def reconnect_trace_relationship(self):
         '''
         기존 연결된 노드정보를 모두 삭제하고 재연결

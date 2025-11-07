@@ -1,5 +1,5 @@
 from oms.dataset.info_factory import ClassInfo, VarInfo, FunctionInfo, InfoBase, InfoSet
-
+import oms.Mapper as OMSMapper
 from svn_oms.dataset.svn_oms import RvInfoBase, RvClassInfo, RvFunctionInfo, RvVarInfo, RvUnit
 
 from clangParser.datas.CUnit import CUnit
@@ -13,6 +13,28 @@ RvInfoType = Union[
     RvFunctionInfo,
     RvVarInfo
 ]
+def from_parsing(rv: Revision, path: str) -> Tuple[Optional[RvUnit], list[RvInfoBase]]:
+    '''
+    해당 파일을 파싱하고 RvUnit/RvInfo 를 생성
+    '''
+    rv_unit = None
+    rv_info_list: list[RvInfoBase] = []
+    try:
+        unit = CUnit.parse(path)
+        rv_unit = cunit2RvUnit(rv, unit)
+        for cursor in unit.get_this_Cursor():
+            # class a; 와 같은 단순한 클래스 선언은 제외
+            if cursor.kind == 'CLASS_DECL' and len(cursor.get_children()) == 0:
+                continue
+            info = OMSMapper.Cursor2InfoBase(cursor)
+            if info:
+                rv_info = info2Rvinfo(rv, info)
+                rv_info_list.append(rv_info)
+
+    except Exception as e:
+        print(f'error parsing {path} : {e}')
+
+    return rv_unit, rv_info_list
 
 def info2Rvinfo(rv: Revision, info: InfoBase) -> RvInfoType:
     '''
