@@ -2,11 +2,8 @@ import sys
 import json
 import os
 
-sys.path.append(r'D:\dev\Python\SVNTrace\SVNTraceAddRVOMS') #현제 경로
-
+sys.path.append(r'D:\dev\python_pure_projects\SVNTrace') #현제 경로
 from mcp_tool.task_db import TaskDB
-
-sys.path.append(r'D:\dev\python_pure_projects\PyUtil')
 
 from mcp.server.fastmcp import FastMCP
 
@@ -78,6 +75,17 @@ def get_task():
         task["request"] = result[0]
 
     return json.dumps(task, ensure_ascii=False, indent=2)
+
+@mcp.tool()
+def print_path_info():
+    """
+    현재 작업 DB의 경로 정보를 출력합니다.
+    :return: 경로 정보 문자열
+    """
+    return f"""
+    TASK_DB_PATH : {TASK_DB_PATH}
+    {taskDB.get_all_main_tasks()}
+    """
 
 if __name__ == "__main__":
     # print(make_head_filters_task("이 메서드는 메모라 누수가 발생하나요?"))
