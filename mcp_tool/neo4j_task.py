@@ -1,5 +1,6 @@
 import sys
 import json
+import os
 
 sys.path.append(r'D:\dev\Python\SVNTrace\SVNTraceAddRVOMS') #현제 경로
 
@@ -18,11 +19,14 @@ PASSWORD = "123456789"
 
 neo4j_handler = Neo4jHandler("bolt://localhost:7687", "neo4j", "123456789", "test")
 
-taskDB = TaskDB()
+TASK_DB_PATH = os.environ.get("TASK_DB_PATH", r"D:\dev\mcp\taskDB.db")
+
+print(f"TASK_DB_PATH: {TASK_DB_PATH}")
+taskDB = TaskDB(TASK_DB_PATH)
 mcp = FastMCP("taskDB")
 
 
-@mcp.tool()
+# @mcp.tool() #작업 생성은 직접 하는게 나은듯
 def make_head_filters_task(task_str: str) -> str:
     """
     메인 작업 생성 후 헤더 메서드 정보로 서브 작업을 생성합니다.
@@ -65,11 +69,18 @@ def get_task():
     현재 처리 안된 서브 작업 하나를 조회합니다.
     :return: 작업 목록
     """
-    tasks = taskDB.fetch_pending_sub_tasks()[0]
-    return json.dumps(tasks, ensure_ascii=False, indent=2)
+    task = taskDB.fetch_pending_sub_tasks()[0]
+    c = taskDB.conn.cursor()
+    c.execute("SELECT request FROM MainTask WHERE id = ?", (task["main_task_id"],))
+    result = c.fetchone()
+
+    if result:
+        task["request"] = result[0]
+
+    return json.dumps(task, ensure_ascii=False, indent=2)
 
 if __name__ == "__main__":
     # print(make_head_filters_task("이 메서드는 메모라 누수가 발생하나요?"))
     print(get_task())
-    print(solve_sub_task(2, "Yes"))
+    # print(solve_sub_task(2, "Yes"))
 
