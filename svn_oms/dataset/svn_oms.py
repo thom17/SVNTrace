@@ -6,6 +6,7 @@ from clangParser.datas.CUnit import CUnit
 
 from oms.dataset.class_info import ClassInfo
 from oms.dataset.function_info import FunctionInfo
+from oms.dataset.var_info import VarInfo
 
 from oms.dataset.info_base import InfoBase, InfoSet, RelationInfo
 import oms.Mapper as Mapper
@@ -25,7 +26,6 @@ class RvInfoBase:
 
         self.owner = None # 일단 None으로 처리
         # self.relationInfo = RvRelationInfo()
-
 
     def to_dict(self):
         info_dict = self.info_base.to_dict()
@@ -56,13 +56,27 @@ class RvUnit:
 
 
 class RvClassInfo(RvInfoBase):
-    pass
+    @classmethod
+    def from_dict(cls, info_dict: Dict) -> 'RvClassInfo':
+        cls_info = ClassInfo.from_dict(info_dict)
+        revision = info_dict.get('revision', '')
+        return cls(info_base=cls_info, revision=revision)
+
 
 class RvFunctionInfo(RvInfoBase):
-    pass
+    @classmethod
+    def from_dict(cls, info_dict: Dict) -> 'RvFunctionInfo':
+        func_info = FunctionInfo.from_dict(info_dict)
+        revision = info_dict.get('revision', '')
+        return cls(info_base=func_info, revision=revision)
+
 
 class RvVarInfo(RvInfoBase):
-    pass
+    @classmethod
+    def from_dict(cls, info_dict: Dict) -> 'RvVarInfo':
+        var_info = VarInfo.from_dict(info_dict)
+        revision = info_dict.get('revision', '')
+        return cls(info_base=var_info, revision=revision)
 
 
 
