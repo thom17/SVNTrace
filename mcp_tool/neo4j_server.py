@@ -1,5 +1,6 @@
 import sys
 import json
+import os
 
 # from mcp_tuto.clang_server import driver
 
@@ -10,11 +11,12 @@ from mcp.server.fastmcp import FastMCP
 
 from py2neo import Graph, Node, Relationship
 
-URI = "bolt://localhost:7687"
-USER = "neo4j"
-PASSWORD = "123456789"
+URI =  os.environ.get("URI", r"bolt://localhost:7687")
+USER = os.environ.get("USER", "neo4j")
+PWD = os.environ.get("PWD", "123456789")
+DBNAME = os.environ.get("DBNAME", "test")
 
-neo4j_handler = Neo4jHandler("bolt://localhost:7687", "neo4j", "123456789", "test")
+neo4j_handler = Neo4jHandler(URI, USER, PWD, DBNAME)
 mcp = FastMCP("neo4j")
 
 def add_connect_test_data():
